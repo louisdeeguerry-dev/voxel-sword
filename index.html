@@ -1,0 +1,3344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- launched from the home screen, the page runs without any browser chrome (the only real
+     "fullscreen" iOS Safari allows - it doesn't support the Fullscreen API for pages) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Voxel Sword">
+<title>Voxel Sword - Prototype</title>
+<style>
+  html, body { margin:0; padding:0; overflow:hidden; width:100%; height:100%; background:#87CEEB; touch-action:none; font-family: -apple-system, Segoe UI, Roboto, sans-serif; -webkit-user-select:none; user-select:none; }
+  canvas { display:block; }
+
+  #rotateOverlay { display:none; }
+  @media (orientation: portrait) {
+    #rotateOverlay { display:flex; position:fixed; inset:0; z-index:9999; background:#0a0a12; color:#fff; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:30px; }
+    #rotateOverlay .icon { font-size:64px; animation: rotateHint 1.6s ease-in-out infinite; }
+    #rotateOverlay .msg { font-size:19px; margin-top:18px; max-width:280px; }
+    @keyframes rotateHint { 0%,100%{ transform:rotate(0deg); } 50%{ transform:rotate(90deg); } }
+  }
+
+  #hud { position:fixed; top:0; left:0; right:0; padding: 10px 14px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:10; }
+  .hud-box { background: rgba(0,0,0,0.45); color:#fff; border-radius: 10px; padding: 8px 12px; font-size: 14px; line-height:1.5; }
+  #hpBarWrap { width:140px; height:14px; background:rgba(0,0,0,0.4); border-radius:8px; overflow:hidden; margin-top:4px; }
+  #hpBar { height:100%; width:100%; background:linear-gradient(90deg,#ff5050,#ff9a5a); transition: width .15s; }
+  #xpBarWrap { width:140px; height:10px; background:rgba(0,0,0,0.4); border-radius:6px; overflow:hidden; margin-top:4px; }
+  #xpBar { height:100%; width:0%; background:linear-gradient(90deg,#a06bff,#ffd23c); transition: width .2s; }
+
+  #minimap { width:112px; height:112px; border-radius:50%; overflow:hidden; border:2px solid rgba(255,255,255,0.45); background:rgba(10,15,20,0.55); box-shadow:0 2px 8px rgba(0,0,0,0.35); }
+  #minimapCanvas { width:100%; height:100%; display:block; }
+
+  #joystick { position:fixed; left: 26px; bottom: 26px; width:120px; height:120px; border-radius:50%; background: rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.35); touch-action:none; z-index:10; }
+  #joyNub { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background: rgba(255,255,255,0.55); pointer-events:none; }
+
+  #attackBtn { position:fixed; right:30px; bottom:34px; width:88px; height:88px; border-radius:50%; background: radial-gradient(circle at 35% 30%, #ffdf7a, #d98c1f); border:3px solid rgba(255,255,255,0.6); color:#3a2400; font-weight:bold; font-size:15px; z-index:10; box-shadow:0 4px 10px rgba(0,0,0,0.35); }
+  #attackBtn:active { transform: scale(0.92); }
+  #atkCooldownOverlay { position:absolute; inset:-3px; border-radius:50%; pointer-events:none; background:transparent; }
+
+  #equipBtn { position:fixed; right:30px; bottom:134px; width:64px; height:64px; border-radius:50%; background: radial-gradient(circle at 35% 30%, #9fd6ff, #2a7fd0); border:3px solid rgba(255,255,255,0.6); color:#fff; font-weight:bold; font-size:22px; z-index:10; box-shadow:0 4px 10px rgba(0,0,0,0.35); pointer-events:auto; }
+
+  #jumpBtn { position:fixed; right:130px; bottom:44px; width:68px; height:68px; border-radius:50%; background: radial-gradient(circle at 35% 30%, #b6ff9a, #3f9c2f); border:3px solid rgba(255,255,255,0.6); color:#123a06; font-weight:bold; font-size:13px; z-index:10; box-shadow:0 4px 10px rgba(0,0,0,0.35); }
+  #jumpBtn:active { transform: scale(0.92); }
+
+  #dashBtn { display:none; position:fixed; right:130px; bottom:122px; width:76px; height:56px; border-radius:16px; background: radial-gradient(circle at 35% 30%, #e2a3ff, #7a2fb0); border:3px solid rgba(255,255,255,0.6); color:#fff; font-weight:bold; font-size:11px; z-index:10; box-shadow:0 4px 10px rgba(0,0,0,0.35); align-items:center; justify-content:center; }
+  #dashBtn:active { transform: scale(0.92); }
+  #dashBtn.onCooldown { opacity:0.5; }
+
+  #slamBtn { display:none; position:fixed; right:130px; bottom:186px; width:76px; height:56px; border-radius:16px; background: radial-gradient(circle at 35% 30%, #ff8a6a, #a8151f); border:3px solid rgba(255,255,255,0.6); color:#fff; font-weight:bold; font-size:11px; z-index:10; box-shadow:0 4px 10px rgba(0,0,0,0.35); align-items:center; justify-content:center; }
+  #slamBtn:active { transform: scale(0.92); }
+  #slamBtn.onCooldown { opacity:0.5; }
+
+  /* starts below the equip top bar (tabs + Fermer) so that stays reachable while this tab is open */
+  #bootsPanel { position:fixed; top:60px; left:0; right:0; bottom:0; z-index:16; display:none; pointer-events:auto; background:rgba(10,15,20,0.9); align-items:center; justify-content:center; flex-direction:column; color:#fff; text-align:center; padding:20px; }
+  #bootsPanel h2 { margin:0 0 6px; }
+  #bootsPanel .bootsStat { font-size:15px; margin:14px 0; background:rgba(255,255,255,0.08); padding:14px 22px; border-radius:14px; }
+  #bootsPanel button { pointer-events:auto; padding:12px 20px; border-radius:10px; border:none; font-size:15px; font-weight:bold; margin-top:8px; }
+  #bootsPanel .bootsStat button { margin: 8px 4px 0; }
+  #attachSpeedBtn { background:#1f8a52; color:#fff; }
+  #detachSpeedBtn { background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.4); color:#fff; }
+
+  /* same "card below the top bar" treatment as the boots tab, but stacked above it (z-index 17) -
+     it's a sub-screen reached from the Arme tab, not a sibling tab of its own */
+  #weaponLevelPanel { position:fixed; top:60px; left:0; right:0; bottom:0; z-index:17; display:none; pointer-events:auto; background:rgba(10,15,20,0.94); align-items:center; justify-content:center; flex-direction:column; color:#fff; text-align:center; padding:20px; }
+  #weaponLevelPanel h2 { margin:0 0 6px; }
+  #weaponLevelPanel .bootsStat { font-size:16px; margin:14px 0; background:rgba(255,255,255,0.08); padding:16px 24px; border-radius:14px; line-height:1.8; }
+  #weaponLevelPanel button { pointer-events:auto; padding:12px 20px; border-radius:10px; border:none; font-size:15px; font-weight:bold; margin-top:8px; }
+  #levelUpWeaponBtn { background:#ffb020; color:#3a2400; }
+  #closeWeaponLevelBtn { background:rgba(220,60,60,0.85); color:#fff; margin-top:20px; }
+
+  #toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:#fff; padding:6px 14px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .3s; z-index:10; pointer-events:none; }
+  #toast.show { opacity:1; }
+
+  #deathOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); color:#fff; display:none; align-items:center; justify-content:center; flex-direction:column; z-index:30; text-align:center; }
+  #deathOverlay button { pointer-events:auto; margin-top:16px; padding:10px 22px; font-size:16px; border-radius:8px; border:none; background:#ffb020; font-weight:bold; }
+
+  #levelUpPanel { position:fixed; inset:0; background:rgba(10,10,25,0.88); color:#fff; display:none; align-items:center; justify-content:center; flex-direction:column; z-index:21; text-align:center; padding:20px; }
+  #levelUpPanel h2 { margin:0 0 20px; font-size:24px; }
+  #levelUpChoices { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+  .levelChoiceBtn { pointer-events:auto; width:180px; padding:20px 14px; border-radius:14px; border:2px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.08); color:#fff; font-size:16px; font-weight:bold; }
+  .levelChoiceBtn .desc { display:block; font-size:12px; font-weight:normal; opacity:0.8; margin-top:6px; }
+  #choosePvBtn { border-color:#ff5050; }
+  #chooseForceBtn { border-color:#ffb020; }
+
+  /* ---- equipment overlay (weapon forge + boots, one entry point with two tabs) ---- */
+  #forgeUI { position:fixed; inset:0; z-index:15; display:none; pointer-events:none; }
+  #forgeTop { position:fixed; top:0; left:0; right:0; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; z-index:1; }
+  #equipTabs { display:flex; gap:8px; pointer-events:auto; }
+  .equipTabBtn { background:rgba(0,0,0,0.5); color:#fff; border:2px solid transparent; border-radius:10px; padding:8px 14px; font-size:14px; font-weight:bold; }
+  .equipTabBtn.active { background:rgba(255,255,255,0.18); border-color:#ffd23c; }
+  .equipTabBtn.locked { opacity:0.5; }
+  #forgeCloseBtn { background:rgba(220,60,60,0.85); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:bold; pointer-events:auto; }
+  #forgeRemoveBtn { background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.4); color:#fff; border-radius:10px; padding:10px 14px; font-size:14px; font-weight:bold; pointer-events:auto; }
+  #forgeRemoveBtn.active { background:rgba(220,60,60,0.85); border-color:#fff; }
+  #weaponLevelBtn { background:rgba(255,176,32,0.85); border:2px solid rgba(255,255,255,0.4); color:#3a2400; border-radius:10px; padding:10px 14px; font-size:14px; font-weight:bold; pointer-events:auto; }
+  #forgeTopRight { display:flex; gap:10px; }
+
+  #presetBar { position:fixed; top:64px; left:50%; transform:translateX(-50%); display:flex; gap:8px; pointer-events:auto; }
+  .presetSlotBtn { width:40px; height:40px; border-radius:10px; border:2px solid rgba(255,255,255,0.3); background:rgba(0,0,0,0.55); color:#fff; font-weight:bold; font-size:16px; pointer-events:auto; }
+  .presetSlotBtn.filled { border-color:#7ad4ff; background:rgba(30,80,120,0.6); }
+  .presetSlotBtn.active { border-color:#ffd23c; background:rgba(120,90,20,0.7); box-shadow:0 0 8px rgba(255,210,60,0.5); }
+  #presetResetBtn { width:40px; height:40px; border-radius:10px; border:2px solid rgba(255,255,255,0.3); background:rgba(0,0,0,0.55); color:#fff; font-size:18px; pointer-events:auto; }
+
+  #forgePalette { position:fixed; left:0; right:0; bottom:18px; display:flex; justify-content:center; flex-wrap:wrap; gap:8px; padding:0 8px; }
+  .paletteBtn { pointer-events:auto; background:rgba(0,0,0,0.55); border:2px solid transparent; border-radius:12px; padding:6px 10px; color:#fff; text-align:center; min-width:52px; display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .paletteBtn.selected { border-color:#ffd23c; background:rgba(0,0,0,0.75); }
+  .paletteBtn .icon { font-size:20px; line-height:1; }
+  .paletteBtn .count { font-size:15px; font-weight:bold; line-height:1.1; }
+  .paletteBtn .weight { font-size:9px; opacity:0.7; line-height:1; }
+  .paletteBtn:disabled { opacity:0.35; }
+  .paletteBtn.atCap { opacity:0.4; }
+
+  #fsBtn { display:none; pointer-events:auto; background:rgba(0,0,0,0.5); color:#fff; border:2px solid rgba(255,255,255,0.4); border-radius:10px; padding:6px 12px; font-size:13px; font-weight:bold; }
+
+  #towerFloorBadge { display:none; position:fixed; top:10px; left:50%; transform:translateX(-50%); background:rgba(20,10,30,0.65); color:#fff; padding:6px 16px; border-radius:14px; font-size:14px; font-weight:bold; z-index:10; pointer-events:none; border:1px solid rgba(140,80,220,0.5); }
+  #mineBadge { display:none; position:fixed; top:10px; left:50%; transform:translateX(-50%); background:rgba(30,22,10,0.7); color:#ffe08a; padding:6px 16px; border-radius:14px; font-size:16px; font-weight:bold; z-index:10; pointer-events:none; border:1px solid rgba(217,165,32,0.6); }
+</style>
+</head>
+<body>
+
+<div id="rotateOverlay">
+  <div class="icon">🔄</div>
+  <div class="msg">Tourne ton téléphone en mode paysage pour jouer</div>
+</div>
+
+<div id="towerFloorBadge">🏯 Étage <span id="towerFloorNum">1</span> / 50<span id="towerCheckpointNum"></span></div>
+<div id="mineBadge">⛏️ <span id="mineTime">60</span> s · 💎 <span id="mineCount">0</span></div>
+
+<div id="hud">
+  <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px;">
+    <div id="minimap"><canvas id="minimapCanvas" width="112" height="112"></canvas></div>
+    <div class="hud-box">
+      ❤️ Vie <span id="hpText">10/10</span><div id="hpBarWrap"><div id="hpBar"></div></div>
+      ✨ Niveau <span id="levelCount">1</span><div id="xpBarWrap"><div id="xpBar"></div></div>
+    </div>
+  </div>
+  <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+    <button id="fsBtn" title="Plein écran">⛶ Plein écran</button>
+    <div class="hud-box" style="text-align:right">
+      🪙 <span id="coinCount">0</span> · ⛏️ <span id="oreCount">0</span> · 🪨 <span id="stoneCount">0</span> · 🪵 <span id="woodCount">0</span> · 🔷 <span id="atkspeedCount">0</span> · 🟢 <span id="speedstoneCount">0</span> · 🩸 <span id="lifedrainCount">0</span> · 💎 <span id="ultimatestoneCount">0</span><br>
+      🗡️ Blocs sur l'arme : <span id="blockCount">2</span>
+    </div>
+    <div class="hud-box" id="statsHud" style="text-align:right"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="joystick"><div id="joyNub"></div></div>
+<button id="attackBtn">ATTAQUE<div id="atkCooldownOverlay"></div></button>
+<button id="jumpBtn">SAUT</button>
+<button id="dashBtn">DASH</button>
+<button id="slamBtn">ÉCRASEMENT</button>
+<button id="equipBtn">🧰</button>
+
+<div id="bootsPanel">
+  <h2>👢 Bottes</h2>
+  <div class="bootsStat">
+    🟢 Pierres de vitesse : <span id="bootsCount">0</span> (+<span id="bootsBonus">0</span>% déplacement)<br>
+    <button id="attachSpeedBtn">Attacher (<span id="speedInStock">0</span> en stock)</button>
+    <button id="detachSpeedBtn">Retirer</button>
+  </div>
+</div>
+
+<div id="weaponLevelPanel">
+  <h2>📈 Niveau de l'arme</h2>
+  <div class="bootsStat">
+    <span id="weaponLevelText">Niveau 1</span><br>
+    <span id="blockCountText">2 / 10 blocs</span><br>
+    <button id="levelUpWeaponBtn">⬆️ Améliorer</button>
+  </div>
+  <button id="closeWeaponLevelBtn">Retour</button>
+</div>
+
+<div id="deathOverlay">
+  <div style="font-size:22px;">💀 Tu es tombé au combat</div>
+  <button id="reviveBtn">Revivre</button>
+</div>
+
+<div id="levelUpPanel">
+  <h2 id="levelUpTitle">🎉 Niveau supérieur !</h2>
+  <div id="levelUpChoices">
+    <button class="levelChoiceBtn" id="choosePvBtn">❤️ Points de vie<span class="desc" id="choosePvDesc">+10% vie maximum</span></button>
+    <button class="levelChoiceBtn" id="chooseForceBtn">💪 Force<span class="desc">Moins ralenti par le poids de l'arme, tu tapes plus vite</span></button>
+  </div>
+</div>
+
+<div id="forgeUI">
+  <div id="forgeTop">
+    <div id="equipTabs">
+      <button class="equipTabBtn" id="tabArmeBtn">⚔️ Arme</button>
+      <button class="equipTabBtn" id="tabBottesBtn">👢 Bottes</button>
+    </div>
+    <div id="forgeTopRight">
+      <button id="forgeRemoveBtn">🗑️ Retirer</button>
+      <button id="weaponLevelBtn">📈 Niveau 1</button>
+      <button id="forgeCloseBtn">Fermer</button>
+    </div>
+  </div>
+  <div id="armeContent">
+    <div id="presetBar">
+      <button class="presetSlotBtn" id="presetSlot0">1</button>
+      <button class="presetSlotBtn" id="presetSlot1">2</button>
+      <button class="presetSlotBtn" id="presetSlot2">3</button>
+      <button id="presetResetBtn" title="Remettre l'arme à zéro (récupère les matériaux)">↺</button>
+    </div>
+    <div id="forgePalette">
+      <button class="paletteBtn" id="palOre" title="Minerai (poids 3)"><span class="icon">⛏️</span><span class="count" id="palOreCount">0</span><span class="weight">3</span></button>
+      <button class="paletteBtn" id="palStone" title="Pierre (poids 6)"><span class="icon">🪨</span><span class="count" id="palStoneCount">0</span><span class="weight">6</span></button>
+      <button class="paletteBtn" id="palWood" title="Bois (poids 4)"><span class="icon">🪵</span><span class="count" id="palWoodCount">0</span><span class="weight">4</span></button>
+      <button class="paletteBtn" id="palAtkspeed" title="Vitesse d'Attaque (poids 4)"><span class="icon">🔷</span><span class="count" id="palAtkspeedCount">0</span><span class="weight">4</span></button>
+      <button class="paletteBtn" id="palLifedrain" title="Drain de Vie (poids 12)"><span class="icon">🩸</span><span class="count" id="palLifedrainCount">0</span><span class="weight">12</span></button>
+      <button class="paletteBtn" id="palUltimatestone" title="Pierre Ultime (poids 30)"><span class="icon">💎</span><span class="count" id="palUltimatestoneCount">0</span><span class="weight">30</span></button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+  "simplex-noise": "https://unpkg.com/simplex-noise@4.0.3/dist/esm/simplex-noise.js"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { createNoise2D } from "simplex-noise";
+
+// ================= RENDERER / SHARED =================
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  forgeCamera.aspect = window.innerWidth/window.innerHeight;
+  forgeCamera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ================= GAME SCENE =================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fd6f0);
+scene.fog = new THREE.Fog(0x9fd6f0, 45, 115);
+
+const camera = new THREE.PerspectiveCamera(68, window.innerWidth/window.innerHeight, 0.1, 250);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 0.9);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(20, 30, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left = -45; sun.shadow.camera.right = 45;
+sun.shadow.camera.top = 45; sun.shadow.camera.bottom = -45;
+scene.add(sun);
+
+// ---- procedural noise textures (no external image files needed) ----
+function clamp255(v){ return Math.max(0,Math.min(255,Math.round(v))); }
+function makeNoiseTexture(base, variance, size=32, repeat=1){
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const [r,g,b] = base;
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const n = (Math.random()-0.5)*variance;
+      ctx.fillStyle = `rgb(${clamp255(r+n)},${clamp255(g+n)},${clamp255(b+n)})`;
+      ctx.fillRect(x,y,1,1);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  return tex;
+}
+
+// ---- forge landmark near spawn (decorative - editing the weapon works anywhere except the Tower) ----
+const FORGE_STATION_POS = new THREE.Vector3(-6, 0, -6);
+// [x, z, half-size] - forge, cave portal temple, tower entrance (+ its portal), mine shaft
+const FLAT_PADS = [[-6,-6,3], [0,10,3], [30,-29,5], [-30,30,4]];
+
+// ---- platforms (raised voxel areas you can jump onto - unclimbable without jumping) ----
+const PLATFORM_HEIGHT = 1; // world units == 1 block, matches base jump height
+const platformMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([196,170,110],30) });
+const platforms = [
+  { minX:-3, maxX:0, minZ:-14, maxZ:-11, height: PLATFORM_HEIGHT },
+  { minX:8,  maxX:12, minZ:4,  maxZ:8,   height: PLATFORM_HEIGHT },
+  { minX:-14,maxX:-10,minZ:6,  maxZ:10,  height: PLATFORM_HEIGHT },
+];
+function platformHeightAt(x, z){
+  for(const p of platforms){
+    if(x >= p.minX-0.4 && x <= p.maxX+0.4 && z >= p.minZ-0.4 && z <= p.maxZ+0.4) return p.height;
+  }
+  const cw = caveWallHeightAt(x, z);
+  if(cw > 0) return cw;
+  const dp = desertPillarHeightAt(x, z);
+  if(dp > 0) return dp;
+  const te = towerEntranceHeightAt(x, z);
+  if(te > 0) return te;
+  const mr = mineRockHeightAt(x, z);
+  if(mr > 0) return mr;
+  return 0;
+}
+
+// ---- cave (walled stone chamber housing the boss) ----
+const CAVE_CENTER = { x: 60, z: 60 };
+const CAVE_HALF = 13; // interior half-extent
+const CAVE_BOUNDS = { minX: CAVE_CENTER.x-CAVE_HALF, maxX: CAVE_CENTER.x+CAVE_HALF, minZ: CAVE_CENTER.z-CAVE_HALF, maxZ: CAVE_CENTER.z+CAVE_HALF };
+const CAVE_ENTRANCE_HALF_WIDTH = 3; // gap in the south wall, centered on CAVE_CENTER.x
+const CAVE_WALL_HEIGHT = 3;
+function inCave(x, z){ return x >= CAVE_BOUNDS.minX-1 && x <= CAVE_BOUNDS.maxX+1 && z >= CAVE_BOUNDS.minZ-1 && z <= CAVE_BOUNDS.maxZ+1; }
+function onCaveEntranceGap(x, z){
+  return Math.round(z) === CAVE_BOUNDS.minZ && x >= CAVE_CENTER.x-CAVE_ENTRANCE_HALF_WIDTH && x <= CAVE_CENTER.x+CAVE_ENTRANCE_HALF_WIDTH;
+}
+// treats the (non-gap) wall ring as elevated ground - reuses the same jump-gated mechanic as
+// platforms, so grounded players/monsters can't walk through it, only through the entrance.
+function caveWallHeightAt(x, z){
+  const rx = Math.round(x), rz = Math.round(z);
+  const onXEdge = (rx === CAVE_BOUNDS.minX || rx === CAVE_BOUNDS.maxX) && rz >= CAVE_BOUNDS.minZ && rz <= CAVE_BOUNDS.maxZ;
+  const onZEdge = (rz === CAVE_BOUNDS.minZ || rz === CAVE_BOUNDS.maxZ) && rx >= CAVE_BOUNDS.minX && rx <= CAVE_BOUNDS.maxX;
+  if(!onXEdge && !onZEdge) return 0;
+  if(onCaveEntranceGap(rx, rz)) return 0;
+  return CAVE_WALL_HEIGHT;
+}
+
+// ---- desert (a separate small realm, reached only through the portal that appears once the
+// cave boss falls - far outside the main WORLD_SIZE grid on purpose, so it never adds cost to
+// the main terrain mesh, and the player can't just wander there on foot). Its own static, high
+// boss sits atop a central pillar - unreachable except by building the sword's blocks upward,
+// since the real-hitbox system already checks every block's live world position regardless of
+// which direction it extends from the hilt. ----
+let currentRealm = 'overworld'; // 'overworld' | 'desert' | 'tower'
+const DESERT_CENTER = { x: 300, z: 0 };
+const DESERT_HALF = 32;
+const DESERT_BOUNDS = { minX: DESERT_CENTER.x-DESERT_HALF, maxX: DESERT_CENTER.x+DESERT_HALF, minZ: DESERT_CENTER.z-DESERT_HALF, maxZ: DESERT_CENTER.z+DESERT_HALF };
+const DESERT_PILLAR_HALF = 0.4; // footprint half-width - thin on purpose, so standing at its edge is close enough to the boss's own horizontal position for a vertical blade to actually reach
+const DESERT_PILLAR_HEIGHT = 3.4;
+function inDesert(x, z){ return x >= DESERT_BOUNDS.minX-1 && x <= DESERT_BOUNDS.maxX+1 && z >= DESERT_BOUNDS.minZ-1 && z <= DESERT_BOUNDS.maxZ+1; }
+function onDesertPillar(x, z){ return x >= DESERT_CENTER.x-DESERT_PILLAR_HALF && x <= DESERT_CENTER.x+DESERT_PILLAR_HALF && z >= DESERT_CENTER.z-DESERT_PILLAR_HALF && z <= DESERT_CENTER.z+DESERT_PILLAR_HALF; }
+// same "elevated ground blocks grounded movement" trick as the cave walls - the player can't
+// walk into the pillar's footprint, so the only way up to the boss is a taller weapon, not a taller jump.
+function desertPillarHeightAt(x, z){ return onDesertPillar(x, z) ? DESERT_PILLAR_HEIGHT : 0; }
+// gentle rolling dunes (0-2 blocks), kept flat around the pillar so the boss fight footing is
+// predictable, and along the entry strip where the portals and arrivals land.
+function desertDuneHeightAt(x, z){
+  const dx = x-DESERT_CENTER.x, dz = z-DESERT_CENTER.z;
+  if(Math.hypot(dx,dz) < 6) return 0;
+  if(z < DESERT_CENTER.z-DESERT_HALF+9) return 0;
+  const n = terrainNoise2D(x*0.06+900, z*0.06+900);
+  return Math.max(0, Math.round((n*0.5+0.5)*2.6 - 0.5));
+}
+
+// ---- the Tower: one reusable arena, not 50 physically separate rooms (impractical for a voxel
+// map like this) - clearing every mob on the current floor opens a stairway that advances
+// towerFloor and repopulates the SAME arena with the next wave. Unlocked once both the cave and
+// desert bosses have fallen at least once. Far from everything else, opposite the desert. ----
+const TOWER_CENTER = { x: -300, z: 0 };
+const TOWER_HALF = 18;
+const TOWER_BOUNDS = { minX: TOWER_CENTER.x-TOWER_HALF, maxX: TOWER_CENTER.x+TOWER_HALF, minZ: TOWER_CENTER.z-TOWER_HALF, maxZ: TOWER_CENTER.z+TOWER_HALF };
+function inTower(x, z){ return x >= TOWER_BOUNDS.minX-1 && x <= TOWER_BOUNDS.maxX+1 && z >= TOWER_BOUNDS.minZ-1 && z <= TOWER_BOUNDS.maxZ+1; }
+// the entrance tower on the main map is solid - same elevated-ground trick as every other structure
+const TOWER_ENTRANCE_POS = new THREE.Vector3(30, 0, -30);
+const TOWER_ENTRANCE_BASE_HALF = 2.75; // matches its widest (bottom) segment
+function towerEntranceHeightAt(x, z){
+  return (Math.abs(x-TOWER_ENTRANCE_POS.x) <= TOWER_ENTRANCE_BASE_HALF && Math.abs(z-TOWER_ENTRANCE_POS.z) <= TOWER_ENTRANCE_BASE_HALF) ? 4 : 0;
+}
+
+// ---- the Mine: pay coins at the shaft entrance on the main map, get dropped into a big dark
+// cavern for MINE_DURATION seconds, grab as many crystals (the rare stones) as you can find
+// between the rock outcrops, and get pulled back out when the clock hits zero. The rock layout
+// is fixed (noise blobs = organic corridors); the crystals reroll every run. ----
+const MINE_CENTER = { x: 0, z: 320 };
+const MINE_HALF = 40;
+const MINE_BOUNDS = { minX: MINE_CENTER.x-MINE_HALF, maxX: MINE_CENTER.x+MINE_HALF, minZ: MINE_CENTER.z-MINE_HALF, maxZ: MINE_CENTER.z+MINE_HALF };
+const MINE_SPAWN = new THREE.Vector3(MINE_CENTER.x, 0, MINE_CENTER.z-MINE_HALF+4);
+const MINE_ROCK_HEIGHT = 2;
+function inMine(x, z){ return x >= MINE_BOUNDS.minX-1 && x <= MINE_BOUNDS.maxX+1 && z >= MINE_BOUNDS.minZ-1 && z <= MINE_BOUNDS.maxZ+1; }
+const mineRocks = new Set();      // "x,z" of solid cells (border + noise blobs) - filled once the noise exists
+const mineOpenCells = [];         // every walkable cell reachable from the spawn (flood-filled)
+function mineRockHeightAt(x, z){ return mineRocks.has(Math.round(x)+','+Math.round(z)) ? MINE_ROCK_HEIGHT : 0; }
+
+function realmMinX(){ if(currentRealm==='desert') return DESERT_BOUNDS.minX+1; if(currentRealm==='tower') return TOWER_BOUNDS.minX+1; if(currentRealm==='mine') return MINE_BOUNDS.minX+1; return -WORLD_SIZE+1; }
+function realmMaxX(){ if(currentRealm==='desert') return DESERT_BOUNDS.maxX-1; if(currentRealm==='tower') return TOWER_BOUNDS.maxX-1; if(currentRealm==='mine') return MINE_BOUNDS.maxX-1; return WORLD_SIZE-1; }
+function realmMinZ(){ if(currentRealm==='desert') return DESERT_BOUNDS.minZ+1; if(currentRealm==='tower') return TOWER_BOUNDS.minZ+1; if(currentRealm==='mine') return MINE_BOUNDS.minZ+1; return -WORLD_SIZE+1; }
+function realmMaxZ(){ if(currentRealm==='desert') return DESERT_BOUNDS.maxZ-1; if(currentRealm==='tower') return TOWER_BOUNDS.maxZ-1; if(currentRealm==='mine') return MINE_BOUNDS.maxZ-1; return WORLD_SIZE-1; }
+
+// ---- terrain (rolling hills and mountains via simplex noise) ----
+const groundGeo = new THREE.BoxGeometry(1, 1, 1);
+const WORLD_SIZE = 85;
+const TERRAIN_MAX_HEIGHT = 7;
+const terrainNoise2D = createNoise2D();
+function terrainHeightAt(x, z){
+  // flat ground under & around platforms, so they always sit on a clean base
+  for(const p of platforms){
+    if(x >= p.minX-1.5 && x <= p.maxX+1.5 && z >= p.minZ-1.5 && z <= p.maxZ+1.5) return 0;
+  }
+  if(inCave(x,z)) return 0; // the cave floor is always flat
+  if(inDesert(x,z)) return desertDuneHeightAt(x,z); // rolling dunes, rendered by the desert's own instanced mesh
+  if(inTower(x,z)) return 0; // the tower arena floor is always flat too
+  if(inMine(x,z)) return 0;  // mine floor is flat - its relief comes from the rock outcrops, which are obstacles
+  // flat pads under the built landmarks, so none of them ends up half-buried or floating on a
+  // hill (literal coords: some of these positions are declared after the terrain mesh is built)
+  for(const [px,pz,r] of FLAT_PADS){ if(Math.abs(x-px) <= r && Math.abs(z-pz) <= r) return 0; }
+  const broad = terrainNoise2D(x*0.018, z*0.018);
+  const detail = terrainNoise2D(x*0.08+500, z*0.08+500);
+  const raw = Math.max(0, broad*0.8 + detail*0.2); // ~half the map stays flat plains, rest rolls into hills
+  return Math.round(raw*raw*TERRAIN_MAX_HEIGHT*1.4);
+}
+// combined walkable height (terrain slopes are always walkable; only platforms require a jump)
+function groundHeightAt(x, z){ return terrainHeightAt(x,z) + platformHeightAt(x,z); }
+
+const terrainMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([120,150,90],36,48) });
+const TERRAIN_GRASS = new THREE.Color(0x5fae4a), TERRAIN_ROCK = new THREE.Color(0x8b8b86), TERRAIN_SNOW = new THREE.Color(0xdfe6ea);
+const CAVE_FLOOR_COLOR = new THREE.Color(0x4a4a52);
+function colorForHeight(h){
+  if(h <= 1) return TERRAIN_GRASS;
+  if(h <= 4) return TERRAIN_GRASS.clone().lerp(TERRAIN_ROCK, (h-1)/3);
+  return TERRAIN_ROCK.clone().lerp(TERRAIN_SNOW, Math.min(1,(h-4)/2));
+}
+const heightCache = new Map();
+function heightKey(x,z){ return x+','+z; }
+let groundInstanceTotal = 0;
+for(let x=-WORLD_SIZE; x<=WORLD_SIZE; x++){
+  for(let z=-WORLD_SIZE; z<=WORLD_SIZE; z++){
+    const h = terrainHeightAt(x,z);
+    heightCache.set(heightKey(x,z), h);
+    groundInstanceTotal += h+1;
+  }
+}
+const groundInstanced = new THREE.InstancedMesh(groundGeo, terrainMat, groundInstanceTotal);
+groundInstanced.castShadow = true; groundInstanced.receiveShadow = true;
+{
+  const dummy = new THREE.Object3D();
+  let gi = 0;
+  for(let x=-WORLD_SIZE; x<=WORLD_SIZE; x++){
+    for(let z=-WORLD_SIZE; z<=WORLD_SIZE; z++){
+      const h = heightCache.get(heightKey(x,z));
+      const col = inCave(x,z) ? CAVE_FLOOR_COLOR : colorForHeight(h);
+      for(let layer=0; layer<=h; layer++){
+        dummy.position.set(x, -0.5+layer, z);
+        dummy.updateMatrix();
+        groundInstanced.setMatrixAt(gi, dummy.matrix);
+        groundInstanced.setColorAt(gi, col);
+        gi++;
+      }
+    }
+  }
+  groundInstanced.instanceMatrix.needsUpdate = true;
+  if(groundInstanced.instanceColor) groundInstanced.instanceColor.needsUpdate = true;
+}
+scene.add(groundInstanced);
+
+// ---- platform meshes (rendered after terrain so we know they'll sit on a flat height-0 base) ----
+const platformGroup = new THREE.Group();
+platforms.forEach(p=>{
+  for(let x=p.minX; x<=p.maxX; x++){
+    for(let z=p.minZ; z<=p.maxZ; z++){
+      const cube = new THREE.Mesh(groundGeo, platformMat);
+      cube.position.set(x, p.height - 0.5, z);
+      cube.castShadow = true; cube.receiveShadow = true;
+      platformGroup.add(cube);
+    }
+  }
+});
+scene.add(platformGroup);
+
+// ---- forge station (furnace + anvil + floating label) - the one physical place weapon
+// reshaping actually works, on the main map a short walk from spawn ----
+{
+  const bodyMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([70,68,72], 24) });
+  const fireMat = new THREE.MeshBasicMaterial({ color: 0xff6a20 });
+
+  const furnaceBase = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.6, 1.8), bodyMat);
+  furnaceBase.position.set(FORGE_STATION_POS.x, 0.8, FORGE_STATION_POS.z);
+  furnaceBase.castShadow = true; furnaceBase.receiveShadow = true;
+  scene.add(furnaceBase);
+
+  const fireTop = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.4, 1.0), fireMat);
+  fireTop.position.set(FORGE_STATION_POS.x, 1.8, FORGE_STATION_POS.z);
+  scene.add(fireTop);
+
+  const anvil = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 0.5), bodyMat);
+  anvil.position.set(FORGE_STATION_POS.x+1.4, 0.25, FORGE_STATION_POS.z);
+  anvil.castShadow = true; anvil.receiveShadow = true;
+  scene.add(anvil);
+
+  const forgeLabel = makeTextSprite('🔨 Forge', { fontSize:44, height:0.6 });
+  forgeLabel.position.set(FORGE_STATION_POS.x, 2.8, FORGE_STATION_POS.z);
+  scene.add(forgeLabel);
+}
+
+// ---- cave walls (dark stone, 3 blocks tall, one gap on the south wall as the entrance) ----
+const caveWallMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([58,58,66],24) });
+const caveWallGroup = new THREE.Group();
+function addCaveWallCube(x, z){
+  for(let layer=1; layer<=CAVE_WALL_HEIGHT; layer++){
+    const cube = new THREE.Mesh(groundGeo, caveWallMat);
+    cube.position.set(x, -0.5+layer, z);
+    cube.castShadow = true; cube.receiveShadow = true;
+    caveWallGroup.add(cube);
+  }
+}
+for(let x=CAVE_BOUNDS.minX; x<=CAVE_BOUNDS.maxX; x++){
+  if(!onCaveEntranceGap(x, CAVE_BOUNDS.minZ)) addCaveWallCube(x, CAVE_BOUNDS.minZ);
+  addCaveWallCube(x, CAVE_BOUNDS.maxZ);
+}
+for(let z=CAVE_BOUNDS.minZ+1; z<CAVE_BOUNDS.maxZ; z++){
+  addCaveWallCube(CAVE_BOUNDS.minX, z);
+  addCaveWallCube(CAVE_BOUNDS.maxX, z);
+}
+scene.add(caveWallGroup);
+
+// ---- desert floor: instanced 1x1 columns following desertDuneHeightAt, same technique as the
+// main terrain but built separately since the desert sits far outside the WORLD_SIZE grid.
+// Sand lightens on the dune crests so the relief actually reads from the camera. ----
+const desertSandMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([224,196,140], 40) });
+const SAND_LOW = new THREE.Color(0xd8b98a), SAND_HIGH = new THREE.Color(0xf4e2b8);
+{
+  const cols = [];
+  for(let x=DESERT_BOUNDS.minX; x<=DESERT_BOUNDS.maxX; x++){
+    for(let z=DESERT_BOUNDS.minZ; z<=DESERT_BOUNDS.maxZ; z++){
+      const h = desertDuneHeightAt(x, z);
+      for(let layer=0; layer<=h; layer++) cols.push([x, -0.5+layer, z, h]);
+    }
+  }
+  const desertMesh = new THREE.InstancedMesh(groundGeo, desertSandMat, cols.length);
+  desertMesh.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  cols.forEach(([x,y,z,h], i)=>{
+    dummy.position.set(x,y,z); dummy.updateMatrix();
+    desertMesh.setMatrixAt(i, dummy.matrix);
+    desertMesh.setColorAt(i, SAND_LOW.clone().lerp(SAND_HIGH, Math.min(1, h/2)));
+  });
+  desertMesh.instanceMatrix.needsUpdate = true;
+  if(desertMesh.instanceColor) desertMesh.instanceColor.needsUpdate = true;
+  scene.add(desertMesh);
+}
+
+const desertPillarMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([196,150,96], 28) });
+const desertPillar = new THREE.Mesh(new THREE.BoxGeometry(DESERT_PILLAR_HALF*2, DESERT_PILLAR_HEIGHT, DESERT_PILLAR_HALF*2), desertPillarMat);
+desertPillar.position.set(DESERT_CENTER.x, DESERT_PILLAR_HEIGHT/2, DESERT_CENTER.z);
+desertPillar.castShadow = true; desertPillar.receiveShadow = true;
+scene.add(desertPillar);
+
+// ---- tower arena: one enclosed room, fully walled (no walk-in gap needed - you only ever
+// arrive here by portal, and movement is already clamped inside TOWER_BOUNDS). Reused for
+// every floor; instanced since the wall count is a few hundred cubes. ----
+const towerFloorMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([52,50,58], 26) });
+const towerFloorMesh = new THREE.Mesh(new THREE.BoxGeometry(TOWER_HALF*2, 1, TOWER_HALF*2), towerFloorMat);
+towerFloorMesh.position.set(TOWER_CENTER.x, -0.5, TOWER_CENTER.z);
+towerFloorMesh.receiveShadow = true;
+scene.add(towerFloorMesh);
+
+const towerWallMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([40,38,48], 22) });
+const TOWER_WALL_HEIGHT = 3;
+{
+  const wallPositions = [];
+  for(let x=TOWER_BOUNDS.minX; x<=TOWER_BOUNDS.maxX; x++){
+    for(let layer=1; layer<=TOWER_WALL_HEIGHT; layer++){
+      wallPositions.push([x, -0.5+layer, TOWER_BOUNDS.minZ]);
+      wallPositions.push([x, -0.5+layer, TOWER_BOUNDS.maxZ]);
+    }
+  }
+  for(let z=TOWER_BOUNDS.minZ+1; z<TOWER_BOUNDS.maxZ; z++){
+    for(let layer=1; layer<=TOWER_WALL_HEIGHT; layer++){
+      wallPositions.push([TOWER_BOUNDS.minX, -0.5+layer, z]);
+      wallPositions.push([TOWER_BOUNDS.maxX, -0.5+layer, z]);
+    }
+  }
+  const towerWallMesh = new THREE.InstancedMesh(groundGeo, towerWallMat, wallPositions.length);
+  const dummy = new THREE.Object3D();
+  wallPositions.forEach(([x,y,z], i)=>{
+    dummy.position.set(x,y,z);
+    dummy.updateMatrix();
+    towerWallMesh.setMatrixAt(i, dummy.matrix);
+  });
+  towerWallMesh.instanceMatrix.needsUpdate = true;
+  scene.add(towerWallMesh);
+}
+
+// ---- tower entrance: a tall, unmistakable structure on the main map, a short walk from the
+// forge - "une grande tour". The portal that actually teleports you sits at its base, only
+// spawned once both the cave and desert bosses have fallen at least once. ----
+const TOWER_ENTRANCE_PORTAL_POS = new THREE.Vector3(30, 0, -26);
+{
+  const entranceMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([90,85,95], 26) });
+  const segments = [ {size:5.5,height:4}, {size:4.2,height:4}, {size:3.0,height:4}, {size:1.8,height:3} ];
+  const group = new THREE.Group();
+  let y = 0;
+  segments.forEach(seg=>{
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(seg.size, seg.height, seg.size), entranceMat);
+    mesh.position.set(0, y+seg.height/2, 0);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh);
+    y += seg.height;
+  });
+  const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.8,0.8), new THREE.MeshBasicMaterial({ color:0x8a30ff }));
+  beacon.position.set(0, y+0.6, 0);
+  group.add(beacon);
+  const label = makeTextSprite('🗼 La Tour', { fontSize:44, height:0.7 });
+  label.position.set(0, y+2.2, 0);
+  group.add(label);
+  group.position.set(TOWER_ENTRANCE_POS.x, 0, TOWER_ENTRANCE_POS.z);
+  scene.add(group);
+}
+
+// ---- mine cavern: floor, rock outcrops (fixed noise layout, flood-filled for reachability),
+// and the shaft entrance structure on the main map ----
+{
+  const key = (x,z)=>x+','+z;
+  for(let x=MINE_BOUNDS.minX; x<=MINE_BOUNDS.maxX; x++){
+    for(let z=MINE_BOUNDS.minZ; z<=MINE_BOUNDS.maxZ; z++){
+      const border = x===MINE_BOUNDS.minX || x===MINE_BOUNDS.maxX || z===MINE_BOUNDS.minZ || z===MINE_BOUNDS.maxZ;
+      const nearSpawn = Math.hypot(x-MINE_SPAWN.x, z-MINE_SPAWN.z) < 5;
+      const n = terrainNoise2D(x*0.16+3000, z*0.16+3000);
+      if(border || (!nearSpawn && n > 0.28)) mineRocks.add(key(x,z));
+    }
+  }
+  const seen = new Set();
+  const stack = [[Math.round(MINE_SPAWN.x), Math.round(MINE_SPAWN.z)]];
+  while(stack.length){
+    const [x,z] = stack.pop();
+    const k = key(x,z);
+    if(seen.has(k) || mineRocks.has(k)) continue;
+    if(x<MINE_BOUNDS.minX||x>MINE_BOUNDS.maxX||z<MINE_BOUNDS.minZ||z>MINE_BOUNDS.maxZ) continue;
+    seen.add(k); mineOpenCells.push([x,z]);
+    stack.push([x+1,z],[x-1,z],[x,z+1],[x,z-1]);
+  }
+
+  const mineFloorMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([44,40,50], 30) });
+  const mineFloor = new THREE.Mesh(new THREE.BoxGeometry(MINE_HALF*2+1, 1, MINE_HALF*2+1), mineFloorMat);
+  mineFloor.position.set(MINE_CENTER.x, -0.5, MINE_CENTER.z);
+  mineFloor.receiveShadow = true;
+  scene.add(mineFloor);
+
+  const mineRockMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([70,62,78], 22) });
+  const rockCells = Array.from(mineRocks).map(k => k.split(',').map(Number));
+  const rockMesh = new THREE.InstancedMesh(groundGeo, mineRockMat, rockCells.length*MINE_ROCK_HEIGHT);
+  const dummy = new THREE.Object3D();
+  let i = 0;
+  rockCells.forEach(([x,z])=>{
+    for(let layer=1; layer<=MINE_ROCK_HEIGHT; layer++){
+      dummy.position.set(x, -0.5+layer, z); dummy.updateMatrix();
+      rockMesh.setMatrixAt(i++, dummy.matrix);
+    }
+  });
+  rockMesh.instanceMatrix.needsUpdate = true;
+  rockMesh.castShadow = true; rockMesh.receiveShadow = true;
+  scene.add(rockMesh);
+}
+// shaft entrance: wooden frame over a dark pit, on the main map
+const MINE_ENTRANCE_POS = new THREE.Vector3(-30, 0, 30);
+const MINE_ENTRY_COST = 30;
+{
+  const woodMatE = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([110,72,40], 26) });
+  const pit = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), new THREE.MeshBasicMaterial({ color:0x07060a }));
+  pit.rotation.x = -Math.PI/2; pit.position.set(MINE_ENTRANCE_POS.x, 0.03, MINE_ENTRANCE_POS.z);
+  scene.add(pit);
+  [-1.9, 1.9].forEach(x=>{
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.6, 0.4), woodMatE);
+    post.position.set(MINE_ENTRANCE_POS.x+x, 1.3, MINE_ENTRANCE_POS.z); post.castShadow = true;
+    scene.add(post);
+  });
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.4, 0.5), woodMatE);
+  beam.position.set(MINE_ENTRANCE_POS.x, 2.7, MINE_ENTRANCE_POS.z); beam.castShadow = true;
+  scene.add(beam);
+  const label = makeTextSprite(`⛏️ Mine · ${MINE_ENTRY_COST} 🪙 · 60 s`, { fontSize:40, height:0.6 });
+  label.position.set(MINE_ENTRANCE_POS.x, 3.7, MINE_ENTRANCE_POS.z);
+  scene.add(label);
+}
+
+// ---- portals: appear once the cave boss is first defeated, teleporting between the overworld
+// and the desert. Plain rings (no billboard) - you're meant to walk through them along one
+// axis, same as any doorway. A slow spin + opacity pulse is enough to read as "alive". ----
+const portals = []; // {group, ring, glow, pos, targetPos, targetRealm, spinT}
+// a small temple frames each portal - a plain floating ring read as "decoration", not "a way
+// somewhere else". Two stone pillars, a lintel across the top, and a base big enough to stand
+// on, with glowing accents in the portal's own color so it's still recognizable from a distance.
+const portalTempleMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([150,140,130], 26) });
+function buildPortalTemple(pos, color){
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.4, 2.6), portalTempleMat);
+  base.position.set(0, -0.3, 0);
+  base.castShadow = true; base.receiveShadow = true;
+  group.add(base);
+
+  const pillarGeo = new THREE.BoxGeometry(0.55, 3.0, 0.55);
+  const accentMat = new THREE.MeshBasicMaterial({ color });
+  const accentGeo = new THREE.BoxGeometry(0.65, 0.18, 0.65);
+  [-1.7, 1.7].forEach(x=>{
+    const pillar = new THREE.Mesh(pillarGeo, portalTempleMat);
+    pillar.position.set(x, 1.4, 0);
+    pillar.castShadow = true;
+    group.add(pillar);
+    const topAccent = new THREE.Mesh(accentGeo, accentMat);
+    topAccent.position.set(x, 2.85, 0);
+    group.add(topAccent);
+  });
+
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.55, 0.6), portalTempleMat);
+  lintel.position.set(0, 2.95, 0);
+  lintel.castShadow = true;
+  group.add(lintel);
+
+  group.position.set(pos.x, 0, pos.z);
+  scene.add(group);
+  return group;
+}
+// `gate` (optional) runs when you step in; returning false refuses the trip (e.g. not enough coins)
+function spawnPortal(pos, color, targetPos, targetRealm, skipTemple, gate){
+  if(!skipTemple) buildPortalTemple(pos, color);
+  const group = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.3, 1.7, 40), new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false }));
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(1.3, 40), new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false }));
+  group.add(glow, ring);
+  group.position.set(pos.x, 1.6, pos.z);
+  scene.add(group);
+  portals.push({ group, ring, glow, pos: group.position, targetPos, targetRealm, spinT: 0, gate });
+}
+function updatePortals(dt){
+  portals.forEach(p=>{
+    p.spinT += dt;
+    p.ring.rotation.z += dt*0.6;
+    p.ring.material.opacity = 0.7 + 0.15*Math.sin(p.spinT*2.5);
+    p.glow.material.opacity = 0.18 + 0.1*Math.sin(p.spinT*2.5+1);
+  });
+}
+const PORTAL_TRIGGER_RADIUS = 1.1;
+let teleportCooldownT = 0;
+function updatePortalTeleport(dt){
+  if(teleportCooldownT > 0){ teleportCooldownT -= dt; return; }
+  for(const p of portals){
+    const dx = player.position.x - p.pos.x, dz = player.position.z - p.pos.z;
+    if(Math.hypot(dx,dz) < PORTAL_TRIGGER_RADIUS){
+      if(p.gate && p.gate() === false){ teleportCooldownT = 1.0; break; } // refused - back off a second so the message doesn't spam
+      teleportTo(p.targetPos, p.targetRealm);
+      break;
+    }
+  }
+}
+function teleportTo(pos, realm){
+  const enteringTower = realm==='tower' && currentRealm!=='tower';
+  const leavingTower = currentRealm==='tower' && realm!=='tower';
+  const enteringMine = realm==='mine' && currentRealm!=='mine';
+  const leavingMine = currentRealm==='mine' && realm!=='mine';
+  currentRealm = realm;
+  player.position.x = pos.x;
+  player.position.z = pos.z;
+  playerY = groundHeightAt(pos.x, pos.z);
+  player.position.y = playerY;
+  velocityY = 0; grounded = true;
+  teleportCooldownT = 1.0; // avoids instantly bouncing back through the destination portal
+  applyRealmAtmosphere();
+  if(leavingTower){ clearAllTowerMobs(); clearTowerStair(); }
+  if(enteringTower){ spawnTowerExitPortal(); spawnTowerFloor(towerStartFloor()); }
+  if(leavingMine) endMineRunState();
+  if(enteringMine) startMineRun();
+  updateTowerFloorHud();
+  updateMineHud();
+  if(realm === 'desert') toast('🏜️ Bienvenue dans le désert...');
+  else if(realm === 'overworld' && !leavingMine) toast('🌀 Retour à la surface');
+  // 'tower' and 'mine' entries get their own toasts; leaving the mine gets a summary instead
+}
+function applyRealmAtmosphere(){
+  const sky = currentRealm==='desert' ? 0xf0c880 : currentRealm==='tower' ? 0x1a1420 : currentRealm==='mine' ? 0x0b0a12 : 0x9fd6f0;
+  scene.background.setHex(sky);
+  scene.fog.color.setHex(sky);
+}
+
+let desertPortalUnlocked = false;
+let ultimateStoneDropped = false; // one-time only - refarming the boss afterward gives a different reward instead
+// deliberately far from the cave, near the middle of the main map (close to where you first
+// spawn) - NOT right outside the cave entrance, so leaving the boss's zone never forces you
+// past it. Reaching it is a choice you have to go make, not something you walk through anyway.
+const PORTAL_CAVE_POS = new THREE.Vector3(0, 0, 10);
+const PORTAL_DESERT_POS = new THREE.Vector3(DESERT_CENTER.x, 0, DESERT_CENTER.z-DESERT_HALF+3);
+function unlockDesertPortal(){
+  if(desertPortalUnlocked) return;
+  desertPortalUnlocked = true;
+  spawnPortal(PORTAL_CAVE_POS, 0xffb020, new THREE.Vector3(DESERT_CENTER.x, 0, DESERT_CENTER.z-DESERT_HALF+5), 'desert');
+  spawnPortal(PORTAL_DESERT_POS, 0x30c0ff, new THREE.Vector3(3, 0, 10), 'overworld');
+  toast('🌀 Un portail est apparu au centre de la carte !');
+}
+
+// the Tower unlocks once BOTH the cave boss and the desert boss have fallen at least once,
+// regardless of order - each death branch calls this, and it only actually triggers once both
+// flags are set.
+let desertBossDefeatedOnce = false;
+let towerPortalUnlocked = false;
+let towerExitPortalSpawned = false;
+function unlockTowerPortal(){
+  if(towerPortalUnlocked || !ultimateStoneDropped || !desertBossDefeatedOnce) return;
+  towerPortalUnlocked = true;
+  spawnPortal(TOWER_ENTRANCE_PORTAL_POS, 0x8a30ff, new THREE.Vector3(TOWER_CENTER.x, 0, TOWER_CENTER.z-TOWER_HALF+4), 'tower', true);
+  toast('🗼 La Tour est apparue sur la carte !');
+}
+function spawnTowerExitPortal(){
+  if(towerExitPortalSpawned) return;
+  towerExitPortalSpawned = true;
+  const exitPos = new THREE.Vector3(TOWER_CENTER.x, 0, TOWER_CENTER.z-TOWER_HALF+4);
+  const returnPos = new THREE.Vector3(TOWER_ENTRANCE_POS.x, 0, TOWER_ENTRANCE_POS.z+9); // clear of the entrance portal's trigger radius
+  spawnPortal(exitPos, 0x30c0ff, returnPos, 'overworld', true);
+}
+
+// ================= COINS + THE MINE =================
+let coins = 0;
+const COIN_REWARD = { passive: 1, aggressive: 3, boss: 50, desertboss: 80 };
+const TOWER_COIN_BASE = 4; // scaled by the floor multiplier at spawn, like XP
+const MINE_DURATION = 60;
+const MINE_CRYSTAL_COUNT = 20;
+// crystals = the rare stones only; weighted so life-drain stays the prize
+const MINE_CRYSTAL_KINDS = ['speedstone','speedstone','speedstone','speedstone','speedstone','atkspeed','atkspeed','atkspeed','lifedrain','lifedrain'];
+let mineTimeLeft = 0, mineCollected = 0;
+const mineCrystals = []; // {mesh, kind}
+function spawnMineCrystals(){
+  clearMineCrystals();
+  const placed = [];
+  for(let tries=0; tries<400 && placed.length<MINE_CRYSTAL_COUNT; tries++){
+    const [cx,cz] = mineOpenCells[Math.floor(Math.random()*mineOpenCells.length)];
+    if(Math.hypot(cx-MINE_SPAWN.x, cz-MINE_SPAWN.z) < 6) continue;              // not handed to you at the door
+    if(placed.some(p => Math.hypot(p[0]-cx, p[1]-cz) < 4)) continue;             // spread out - you have to roam
+    placed.push([cx,cz]);
+    const kind = MINE_CRYSTAL_KINDS[Math.floor(Math.random()*MINE_CRYSTAL_KINDS.length)];
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.75,0.55), NODE_MAT[kind]);
+    mesh.position.set(cx, 0.45, cz);
+    mesh.rotation.y = Math.PI/4;
+    mesh.castShadow = true;
+    scene.add(mesh);
+    mineCrystals.push({ mesh, kind });
+  }
+}
+function clearMineCrystals(){
+  mineCrystals.forEach(c => scene.remove(c.mesh));
+  mineCrystals.length = 0;
+}
+function updateMineCrystals(dt){
+  mineCrystals.forEach(c => { c.mesh.rotation.y += dt*1.2; });
+}
+function collectMineCrystal(c){
+  inventory[c.kind] += 1;
+  mineCollected++;
+  scene.remove(c.mesh);
+  const i = mineCrystals.indexOf(c); if(i>=0) mineCrystals.splice(i,1);
+  updateHud(); updatePaletteCounts(); updateMineHud();
+  toast(`💎 +1 ${MATERIAL_STATS[c.kind].label} (${mineCollected})`);
+}
+function startMineRun(){
+  mineTimeLeft = MINE_DURATION;
+  mineCollected = 0;
+  spawnMineCrystals();
+  toast(`⛏️ ${MINE_DURATION} secondes ! Ramasse un maximum de cristaux`, 2500);
+}
+function endMineRunState(){ // called by teleportTo whenever we leave the mine, for any reason
+  clearMineCrystals();
+  mineTimeLeft = 0;
+}
+function finishMineRun(){
+  const got = mineCollected;
+  teleportTo(new THREE.Vector3(MINE_ENTRANCE_POS.x, 0, MINE_ENTRANCE_POS.z+5), 'overworld');
+  toast(got > 0 ? `⏱️ Temps écoulé ! ${got} cristal${got>1?'aux':''} ramassé${got>1?'s':''}` : '⏱️ Temps écoulé ! Rien cette fois...', 3000);
+}
+function updateMineRun(dt){
+  if(currentRealm !== 'mine') return;
+  mineTimeLeft -= dt;
+  updateMineHud();
+  if(mineTimeLeft <= 0) finishMineRun();
+}
+function updateMineHud(){
+  const badge = document.getElementById('mineBadge');
+  if(currentRealm === 'mine'){
+    badge.style.display = 'block';
+    document.getElementById('mineTime').textContent = Math.max(0, Math.ceil(mineTimeLeft));
+    document.getElementById('mineCount').textContent = mineCollected;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+// the shaft's portal exists from the start - coins are the only gate
+spawnPortal(MINE_ENTRANCE_POS, 0xd9a520, MINE_SPAWN, 'mine', true, ()=>{
+  if(coins < MINE_ENTRY_COST){ toast(`⛏️ Il te faut ${MINE_ENTRY_COST} 🪙 pour descendre (tu en as ${coins})`, 2000); return false; }
+  coins -= MINE_ENTRY_COST;
+  updateHud();
+  return true;
+});
+
+// one-time nudge the first time you get close enough to the pillar to notice you can't touch
+// it - "your sword is too short" isn't discoverable from a silent whiff alone.
+let desertBossHintShown = false;
+function updateDesertBossHint(){
+  if(desertBossHintShown || currentRealm !== 'desert') return;
+  if(Math.hypot(player.position.x-DESERT_CENTER.x, player.position.z-DESERT_CENTER.z) < 4){
+    desertBossHintShown = true;
+    toast("Ce boss est bien trop haut... il faut une arme qui s'étend vers le haut !");
+  }
+}
+
+// random point strictly inside the cave's walls (used for the interior stone nodes & the boss)
+function randomPosInCave(wallMargin=2.5){
+  const x = randRange(CAVE_BOUNDS.minX+wallMargin, CAVE_BOUNDS.maxX-wallMargin);
+  const z = randRange(CAVE_BOUNDS.minZ+wallMargin, CAVE_BOUNDS.maxZ-wallMargin);
+  return new THREE.Vector3(x, 0, z);
+}
+
+// like randomWorldPos, but rejects spots sitting on/inside a platform, or inside the cave
+// (for ground-level spawns) - terrain elevation is fine to spawn on, only platforms (which
+// need a jump) and the cave (a dedicated boss area) are avoided
+function randomGroundPos(margin=3){
+  for(let i=0;i<20;i++){
+    const p = randomWorldPos(margin);
+    if(platformHeightAt(p.x, p.z) === 0 && !inCave(p.x, p.z)) return p;
+  }
+  return randomWorldPos(margin);
+}
+
+function randRange(min,max){ return min + Math.random()*(max-min); }
+function randomWorldPos(margin=3){
+  return new THREE.Vector3(randRange(-WORLD_SIZE+margin, WORLD_SIZE-margin), 0, randRange(-WORLD_SIZE+margin, WORLD_SIZE-margin));
+}
+
+// ---- player ----
+const player = new THREE.Group();
+const skinMat = new THREE.MeshLambertMaterial({ color: 0x3d7dff });
+const headMat = new THREE.MeshLambertMaterial({ color: 0xf3c08a });
+const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.35), skinMat);
+body.position.y = 0.55; body.castShadow = true;
+const head = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.4,0.4), headMat);
+head.position.y = 1.1; head.castShadow = true;
+player.add(body, head);
+
+const swordPivot = new THREE.Group();
+swordPivot.position.set(0.35, 0.55, 0.15);
+player.add(swordPivot);
+player.position.set(0, 0, 0);
+scene.add(player);
+
+// ================= WEAPON DATA MODEL =================
+// grid-based voxel weapon, shared between gameplay render and forge editor
+const WBLOCK = 0.22;
+const oreMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([176,128,80],42) });
+const stoneMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([143,143,150],36) });
+const coreMat = new THREE.MeshLambertMaterial({ color: 0xd8d8e0 });
+const hiltCoreMat = new THREE.MeshLambertMaterial({ color: 0x8a5a2b });
+const atkspeedMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([90,220,230],30), emissive: 0x1fa0aa, emissiveIntensity:0.35 });
+const lifedrainMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([150,10,40],30), emissive: 0x8a0020, emissiveIntensity:0.5 });
+const woodMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([120,80,45],32) });
+// only drops from the cave boss - near-black obsidian with a deep red glow
+const ultimatestoneMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([26,20,28],22), emissive: 0xaa1010, emissiveIntensity:0.55 });
+const MAT_BY_TYPE = { ore:oreMat, stone:stoneMat, hilt:hiltCoreMat, core:coreMat, atkspeed:atkspeedMat, lifedrain:lifedrainMat, wood:woodMat, ultimatestone:ultimatestoneMat };
+const matFor = (type) => MAT_BY_TYPE[type] || coreMat;
+
+// density = weight per block. Placement further from the hilt matters more (leverage),
+// so a heavy block at the tip changes the weapon far more than the same block near the handle.
+const MATERIAL_STATS = {
+  ore:      { density: 3, label: 'Minerai' },
+  stone:    { density: 6, label: 'Pierre' },
+  core:     { density: 2, label: 'Acier' },
+  hilt:     { density: 2, label: 'Manche' },
+  atkspeed: { density: 4, label: "Pierre de Vitesse d'Attaque" },
+  speedstone:{ density: 4, label: 'Pierre de Vitesse' },
+  lifedrain:{ density: 12, label: 'Pierre de Drain de Vie' }, // very heavy, very rare
+  wood:     { density: 4, label: 'Bois' },
+  ultimatestone:{ density: 30, label: 'Pierre Ultime' }, // extremely heavy - the tradeoff for unlocking the ground-slam
+};
+
+const BASE_DAMAGE = 1, BASE_RANGE = 1.3, BASE_SPEED = 4.2;
+const DAMAGE_PER_MOMENT = 0.6, RANGE_PER_REACH = 1.0, COOLDOWN_PER_MOMENT = 0.35, SPEED_LOSS_PER_WEIGHT = 0.04;
+const ATKSPEED_BONUS_PER_STONE = 0.18; // each attack-speed stone on the weapon shrinks the swing time by 18%
+const BOOTS_SPEED_BONUS_PER_STONE = 0.08; // each speed stone on the boots adds 8% move speed
+const LIFEDRAIN_PER_STONE = 0.15; // each life-drain stone heals for 15% of the damage you deal
+// dash isn't unlocked linearly per stone - it's gated by how many attack-speed stones are on the weapon
+const DASH_THRESHOLDS = [1, 10, 100]; // stone count needed for 1st, 2nd, 3rd charge
+function dashChargesForCount(count){
+  let charges = 0;
+  for(const t of DASH_THRESHOLDS){ if(count >= t) charges++; }
+  return charges;
+}
+
+// the sword swing itself sweeps this many degrees to each side (used both for the animation and the real hitbox path)
+const SWING_HALF_ANGLE = 35 * Math.PI/180;
+
+let bootsSpeedStones = 0;
+let prevMaxDash = 0;
+const DASH_DISTANCE = 3, DASH_REGEN_TIME = 6, DASH_COOLDOWN = 0.3;
+let dashCharges_current = 0, dashRegenT = 0, dashOnCooldown = false;
+let maxDashCharges = 0;
+let playerForce = 0; // each point makes the weapon's weight matter less (speed & attack-speed penalties) - gained via level-ups
+const FORCE_MITIGATION_PER_POINT = 0.08;
+
+let weaponStats = { weight:0, damage:BASE_DAMAGE, range:BASE_RANGE, swingMultiplier:1, moveSpeed:BASE_SPEED };
+function computeWeaponStats(){
+  let weight = 0, moment = 0, maxReach = 0, atkSpeedCount = 0, lifeDrainCount = 0;
+  for(const b of weaponBlocks.values()){
+    const density = MATERIAL_STATS[b.type].density;
+    const dist = Math.sqrt(b.x*b.x + b.y*b.y + b.z*b.z) * WBLOCK;
+    weight += density;
+    // attack-speed stones carry weight (still slow you down on foot) but don't add damage
+    // or slow the swing down themselves - only OTHER mass does that.
+    if(b.type !== 'atkspeed') moment += density * dist;
+    if(dist > maxReach) maxReach = dist;
+    if(b.type === 'atkspeed') atkSpeedCount++;
+    if(b.type === 'lifedrain') lifeDrainCount++;
+  }
+  const bootsSpeedBonus = 1 + bootsSpeedStones * BOOTS_SPEED_BONUS_PER_STONE;
+  // Force reduces how much weight slows you down/your swing - it never reduces damage, which still uses the raw moment.
+  const forceFactor = 1 / (1 + playerForce * FORCE_MITIGATION_PER_POINT);
+  weaponStats = {
+    weight,
+    damage: BASE_DAMAGE + moment * DAMAGE_PER_MOMENT,
+    range: BASE_RANGE + maxReach * RANGE_PER_REACH,
+    swingMultiplier: (1 + moment*forceFactor * COOLDOWN_PER_MOMENT) / (1 + atkSpeedCount * ATKSPEED_BONUS_PER_STONE),
+    moveSpeed: Math.max(1.2, BASE_SPEED / (1 + weight*forceFactor * SPEED_LOSS_PER_WEIGHT) * bootsSpeedBonus),
+    maxReach,
+    atkSpeedCount,
+    lifeDrain: lifeDrainCount * LIFEDRAIN_PER_STONE,
+  };
+  return weaponStats;
+}
+
+// weapon level caps how many total cubes (including the base hilt/core) it can carry.
+let weaponLevel = 1;
+function maxBlocksForLevel(lvl){ return lvl * 5 + 5; } // level 1 = 10, level 2 = 15, level 3 = 20, ...
+
+// leveling up costs more materials AND more different material types each time -
+// level 1->2 needs 5 stone + 5 wood, level 2->3 adds ore too (all at qty 10), etc.
+const LEVEL_UP_MATERIALS = ['stone','wood','ore','atkspeed','lifedrain'];
+function levelUpCost(currentLevel){
+  const typesRequired = Math.min(LEVEL_UP_MATERIALS.length, currentLevel+1);
+  const qtyEach = currentLevel * 5;
+  const cost = {};
+  for(let i=0;i<typesRequired;i++) cost[LEVEL_UP_MATERIALS[i]] = qtyEach;
+  return cost;
+}
+
+const weaponBlocks = new Map(); // key "x,y,z" -> { type, x,y,z }
+function keyOf(x,y,z){ return x+','+y+','+z; }
+function setBlock(x,y,z,type){ weaponBlocks.set(keyOf(x,y,z), {type,x,y,z}); }
+// would removing this block leave any OTHER block no longer connected to the hilt?
+// (BFS from the hilt through every block except the one being removed)
+function wouldOrphanBlocks(removeKey){
+  const visited = new Set([keyOf(0,0,0)]);
+  const queue = [keyOf(0,0,0)];
+  while(queue.length){
+    const [cx,cy,cz] = queue.shift().split(',').map(Number);
+    for(const [dx,dy,dz] of NEIGHBOR_OFFSETS){
+      const nk = keyOf(cx+dx,cy+dy,cz+dz);
+      if(nk === removeKey || visited.has(nk) || !weaponBlocks.has(nk)) continue;
+      visited.add(nk);
+      queue.push(nk);
+    }
+  }
+  for(const key of weaponBlocks.keys()){
+    if(key !== removeKey && !visited.has(key)) return true;
+  }
+  return false;
+}
+// returns true on success, or a string reason on failure ('base' | 'disconnect')
+function removeBlockAt(x,y,z){
+  const key = keyOf(x,y,z);
+  const b = weaponBlocks.get(key);
+  if(!b) return 'base';
+  if(b.type==='hilt' || b.type==='core') return 'base'; // can't strip the base structure
+  if(wouldOrphanBlocks(key)) return 'disconnect'; // must remove the farthest blocks first, never leave floating pieces
+  weaponBlocks.delete(key);
+  inventory[b.type] += 1;
+  return true;
+}
+
+// starting shape: hilt + 2 blade core blocks pointing +z (matches previous v1 look)
+setBlock(0,0,0,'hilt');
+setBlock(0,0,1,'core');
+setBlock(0,0,2,'core');
+
+// diagonals are only allowed within the same height layer (dy=0); a diagonal that
+// also changes height (a "corner" jump between layers) isn't - straight up/down still is.
+const NEIGHBOR_OFFSETS = [];
+for(let dx=-1; dx<=1; dx++) for(let dy=-1; dy<=1; dy++) for(let dz=-1; dz<=1; dz++){
+  if(dx===0 && dy===0 && dz===0) continue;
+  if(dy!==0 && (dx!==0 || dz!==0)) continue;
+  NEIGHBOR_OFFSETS.push([dx,dy,dz]);
+}
+function getValidPlacements(){
+  const candidates = new Set();
+  for(const b of weaponBlocks.values()){
+    for(const [dx,dy,dz] of NEIGHBOR_OFFSETS){
+      const nx=b.x+dx, ny=b.y+dy, nz=b.z+dz;
+      const k = keyOf(nx,ny,nz);
+      if(!weaponBlocks.has(k)) candidates.add(k);
+    }
+  }
+  return Array.from(candidates).map(k=>{ const [x,y,z]=k.split(',').map(Number); return {x,y,z}; });
+}
+
+// ---- render weapon into a target group (used both by gameplay swordPivot and forge scene) ----
+const weaponBoxGeo = new THREE.BoxGeometry(WBLOCK*0.94, WBLOCK*0.94, WBLOCK*0.94);
+function buildWeaponMeshGroup(){
+  const g = new THREE.Group();
+  for(const b of weaponBlocks.values()){
+    const m = new THREE.Mesh(weaponBoxGeo, matFor(b.type));
+    m.position.set(b.x*WBLOCK, b.y*WBLOCK, b.z*WBLOCK);
+    m.castShadow = true;
+    m.userData = { x:b.x, y:b.y, z:b.z, type:b.type };
+    g.add(m);
+  }
+  return g;
+}
+let gameWeaponMesh = buildWeaponMeshGroup();
+swordPivot.add(gameWeaponMesh);
+function refreshGameWeaponMesh(){
+  swordPivot.remove(gameWeaponMesh);
+  gameWeaponMesh = buildWeaponMeshGroup();
+  gameWeaponMesh.position.z = 0.1; // align hilt near hand
+  swordPivot.add(gameWeaponMesh);
+  document.getElementById('blockCount').textContent = weaponBlocks.size + ' / ' + maxBlocksForLevel(weaponLevel);
+  computeWeaponStats();
+  updateStatsHud();
+  updateDashHud();
+  updateSlamHud();
+}
+refreshGameWeaponMesh();
+
+function updateStatsHud(){
+  const el = document.getElementById('statsHud');
+  if(!el) return;
+  el.innerHTML =
+    '⚖️ Poids : ' + weaponStats.weight.toFixed(0) +
+    '<br>💥 Dégâts : ' + weaponStats.damage.toFixed(1) +
+    '<br>📏 Portée : ' + weaponStats.range.toFixed(2) +
+    '<br>⚡ Vit. attaque : ' + Math.round(100/weaponStats.swingMultiplier) + '%' +
+    '<br>🐢 Vit. déplacement : ' + Math.round(weaponStats.moveSpeed/BASE_SPEED*100) + '%' +
+    (weaponStats.lifeDrain > 0 ? '<br>🩸 Drain de vie : ' + Math.round(weaponStats.lifeDrain*100) + '%' : '');
+}
+
+// ================= RESOURCE NODES =================
+const speedstoneMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([90,230,150],30), emissive: 0x1f8a52, emissiveIntensity:0.35 });
+const NODE_MAT = { ore:oreMat, stone:stoneMat, atkspeed:atkspeedMat, speedstone:speedstoneMat, lifedrain:lifedrainMat };
+const nodes = [];
+function spawnNode(kind, pos){
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.6,0.6), NODE_MAT[kind]);
+  pos = pos || randomGroundPos();
+  mesh.position.set(pos.x, groundHeightAt(pos.x,pos.z)+0.3, pos.z);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  return { mesh, kind, alive:true, respawnAt:0 };
+}
+// common ore/stone, occasional speed stone, very rare attack-speed/life-drain stones
+const NODE_KINDS = ['ore','ore','ore','ore','ore','ore','ore','ore','ore','ore','stone','stone','stone','stone',
+  'speedstone','speedstone','atkspeed','lifedrain'];
+NODE_KINDS.forEach(kind => nodes.push(spawnNode(kind)));
+
+// the cave is a dedicated stone area ("beaucoup de pierres") - a dense cluster of stone nodes inside its walls
+for(let i=0;i<16;i++) nodes.push(spawnNode('stone', randomPosInCave()));
+
+// ================= ENEMIES =================
+// passive monsters (green) never attack; aggressive ones (red-orange) chase and attack
+// once you step inside their aggro radius, shown as a faint circle on the ground.
+// the boss (deep purple) also chip-damages you on contact like the aggressive mobs, but on
+// top of that has two telegraphed attacks, sharing one cooldown so it never chains them back
+// to back: up close, a ground-slam AoE; at longer range, a line attack that reaches further
+// but is narrow, so sidestepping it is enough. Both use the same "static zone + filling
+// indicator" telegraph so they read the same way once you've learned one.
+const ENEMY_TYPES = {
+  passive:    { color: 0x8fd14f, aggroRadius: 0,  hp: 2,  dmgPerSec: 0, chaseSpeed: 2.0, wanderSpeed: 1.1, size: 0.5, contactRadius: 0.6 },
+  aggressive: { color: 0xe0432f, aggroRadius: 3.5, hp: 2,  dmgPerSec: 4, chaseSpeed: 2.0, wanderSpeed: 1.1, size: 0.5, contactRadius: 0.6 },
+  boss:       { color: 0x7a1fb0, aggroRadius: 15, hp: 60, dmgPerSec: 6, chaseSpeed: 1.8, wanderSpeed: 1.6, size: 1.6, contactRadius: 1.0,
+    slamRange: 6.5, slamRadius: 3.5, slamDamage: 14, slamTelegraph: 1.2, slamCooldown: 4.0, slamRecover: 1.0,
+    lineRange: 9.5, lineLength: 8, lineWidth: 1.7, lineDamage: 12, lineTelegraph: 1.2, lineCooldown: 4.0, lineRecover: 1.0 },
+  // perched on the desert pillar, never moves and never attacks - the whole fight is "can your
+  // sword physically reach it", not a dodge/pattern check like the cave boss.
+  // never moves, but rains arrows: each one is a small telegraphed patch on the ground at your
+  // current spot (same static-zone + filling-disc visual as the cave boss), low damage, frequent -
+  // you dodge by simply not standing there when it fills. Still only hittable with a tall blade.
+  desertboss: { color: 0xc0392b, aggroRadius: 0, hp: 110, dmgPerSec: 0, chaseSpeed: 0, wanderSpeed: 0, size: 1.3, contactRadius: 0, static: true,
+    arrowCooldown: 1.1, arrowTelegraph: 0.9, arrowRadius: 0.9, arrowDamage: 2, arrowRange: 40, arrowScatter: 0.6 },
+
+  // ---- Tower mobs: aggroRadius 999 is deliberate - these spawn into an already-enclosed arena
+  // room where the fight starts the instant the floor does, not an open world you can sneak
+  // through, so there's no wander/idle state to bother with. Base hp/damage here get multiplied
+  // by towerFloorScale(floor) at spawn time - these are floor-1 baseline values. ----
+  tower_ranged:    { color: 0x30c8ff, aggroRadius: 999, hp: 8,  dmgPerSec: 0, chaseSpeed: 1.3, wanderSpeed: 0, size: 0.5,  contactRadius: 0.55,
+    mechanic:'ranged', preferredRange: 6, fireCooldown: 2.2, projectileDamage: 3, projectileSpeed: 6 },
+  tower_invisible: { color: 0x8a3fd6, aggroRadius: 999, hp: 6,  dmgPerSec: 5, chaseSpeed: 2.2, wanderSpeed: 0, size: 0.5,  contactRadius: 0.55,
+    mechanic:'invisible', stealthCycle: 3.0, stealthVisibleWindow: 1.0 },
+  tower_jumper:    { color: 0x8fd14f, aggroRadius: 999, hp: 10, dmgPerSec: 6, chaseSpeed: 1.6, wanderSpeed: 0, size: 0.55, contactRadius: 0.6,
+    mechanic:'jumper', jumpTriggerRange: 5, jumpDistance: 3.2, jumpHeight: 1.4, jumpDuration: 0.45, jumpCooldown: 1.8 },
+  tower_swift:     { color: 0xffd23c, aggroRadius: 999, hp: 5,  dmgPerSec: 4, chaseSpeed: 3.6, wanderSpeed: 0, size: 0.4,  contactRadius: 0.5,
+    mechanic:'swift' },
+  tower_brute:     { color: 0x6b4a2f, aggroRadius: 999, hp: 40, dmgPerSec: 9, chaseSpeed: 0.9, wanderSpeed: 0, size: 0.9,  contactRadius: 0.85,
+    mechanic:'brute' },
+  tower_bomber:    { color: 0xff3030, aggroRadius: 999, hp: 6,  dmgPerSec: 0, chaseSpeed: 2.4, wanderSpeed: 0, size: 0.5,  contactRadius: 0.5,
+    mechanic:'bomber', explodeRange: 1.1, explodeRadius: 2.2, explodeDamage: 10 },
+  tower_phantom:   { color: 0x30ffb0, aggroRadius: 999, hp: 9,  dmgPerSec: 5, chaseSpeed: 1.6, wanderSpeed: 0, size: 0.5,  contactRadius: 0.55,
+    mechanic:'phantom', blinkCooldown: 3.0, blinkRange: 1.6 },
+  tower_warden:    { color: 0xaaaaaa, aggroRadius: 999, hp: 16, dmgPerSec: 5, chaseSpeed: 1.2, wanderSpeed: 0, size: 0.6,  contactRadius: 0.6,
+    mechanic:'warden', shieldCycle: 4.0, shieldActiveWindow: 1.6, shieldColor: 0x66eaff },
+};
+const TOWER_MOB_POOL = ['tower_ranged','tower_invisible','tower_jumper','tower_swift','tower_brute','tower_bomber','tower_phantom','tower_warden'];
+const TOWER_FLOOR_COUNT = 50;
+const TOWER_XP_BASE = 12;
+function towerFloorScale(floor){ return 1 + (floor-1)*0.10; }
+const BOSS_RESPAWN_MS = 90000;
+// draws text on a canvas and wraps it as a sprite - the only way to get real text into a
+// no-build-tooling Three.js scene without a font-mesh library.
+function makeTextSprite(text, {fontSize=44, color='#ffffff', strokeColor='rgba(0,0,0,0.9)', height=0.16} = {}){
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  const textWidth = Math.ceil(ctx.measureText(text).width);
+  canvas.width = textWidth + 24;
+  canvas.height = fontSize + 24;
+  ctx.font = `bold ${fontSize}px sans-serif`; // canvas resets context state whenever width/height is set
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = strokeColor;
+  ctx.strokeText(text, canvas.width/2, canvas.height/2);
+  ctx.fillStyle = color;
+  ctx.fillText(text, canvas.width/2, canvas.height/2);
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent:true, depthTest:false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(height*(canvas.width/canvas.height), height, 1);
+  sprite.renderOrder = 20;
+  return sprite;
+}
+
+const hpBarBgMat = new THREE.SpriteMaterial({ color: 0x220000, depthTest:false });
+const hpBarFgMat = new THREE.SpriteMaterial({ color: 0x2ecc40, depthTest:false });
+const HP_BAR_WIDTH = 0.46;
+// fixed size regardless of the monster's own body scale - tying it to body size made it
+// unreadable on small monsters (0.15 world units ~= 10px on a phone at gameplay distance).
+const HP_TEXT_HEIGHT = 0.3;
+function HP_TEXT_OFFSET(scale){ return 0.17 + 0.045*scale; } // clears the bar's own (scaled) height
+function hpLabel(hp, maxHp){ return `${Math.max(0,Math.ceil(hp))}/${Math.max(0,Math.round(maxHp))}`; }
+function makeHpBar(scale=1, hp=1, maxHp=1){
+  const group = new THREE.Group();
+  const bg = new THREE.Sprite(hpBarBgMat);
+  bg.scale.set(0.5*scale, 0.09*scale, 1);
+  bg.renderOrder = 10;
+  const fg = new THREE.Sprite(hpBarFgMat);
+  fg.scale.set(HP_BAR_WIDTH*scale, 0.06*scale, 1);
+  fg.renderOrder = 11;
+  group.add(bg, fg);
+  group.position.y = 0.55;
+
+  const label = hpLabel(hp, maxHp);
+  const text = makeTextSprite(label, { fontSize:40, height:HP_TEXT_HEIGHT });
+  text.position.y = HP_TEXT_OFFSET(scale);
+  group.add(text);
+
+  return { group, fg, widthScale: scale, text, lastLabel: label };
+}
+function updateHpBar(en){
+  en.hpBar.fg.scale.x = HP_BAR_WIDTH * en.hpBar.widthScale * Math.max(0, en.hp/en.maxHp);
+  const label = hpLabel(en.hp, en.maxHp);
+  if(label === en.hpBar.lastLabel) return; // avoid rebuilding the canvas texture every frame for nothing
+  en.hpBar.lastLabel = label;
+  const old = en.hpBar.text;
+  const fresh = makeTextSprite(label, { fontSize:40, height:HP_TEXT_HEIGHT });
+  fresh.position.copy(old.position);
+  en.hpBar.group.remove(old);
+  old.material.map.dispose();
+  old.material.dispose();
+  en.hpBar.group.add(fresh);
+  en.hpBar.text = fresh;
+}
+// health bars used to render for every tree and monster on the whole map at once, all the
+// time - only nearby ones matter, so hide the rest instead of cluttering the view.
+const HP_BAR_VISIBILITY_RANGE = 20;
+function updateHpBarVisibility(){
+  enemies.forEach(en=>{
+    if(!en.alive) return;
+    en.hpBar.group.visible = player.position.distanceTo(en.mesh.position) < HP_BAR_VISIBILITY_RANGE;
+  });
+  trees.forEach(tr=>{
+    if(!tr.alive) return;
+    tr.hpBar.group.visible = player.position.distanceTo(tr.mesh.position) < HP_BAR_VISIBILITY_RANGE;
+  });
+}
+
+// floating "-X" damage numbers over monsters, for both sword hits and the slam
+const damageNumbers = []; // {sprite, life, duration, startY}
+function spawnDamageNumber(pos, amount){
+  const sprite = makeTextSprite(`-${Math.max(1, Math.round(amount))}`, { fontSize:52, color:'#ff5a3c', height:0.28 });
+  sprite.position.set(pos.x + randRange(-0.15,0.15), pos.y + 0.3, pos.z);
+  scene.add(sprite);
+  damageNumbers.push({ sprite, life:0, duration:0.7, startY: sprite.position.y });
+}
+function updateDamageNumbers(dt){
+  for(let i=damageNumbers.length-1; i>=0; i--){
+    const d = damageNumbers[i];
+    d.life += dt;
+    const p = Math.min(d.life/d.duration, 1);
+    d.sprite.position.y = d.startY + p*0.8;
+    d.sprite.material.opacity = 1-p;
+    if(p >= 1){ scene.remove(d.sprite); d.sprite.material.map.dispose(); d.sprite.material.dispose(); damageNumbers.splice(i,1); }
+  }
+}
+
+const enemies = [];
+// ---- tower mob silhouettes: each mechanic gets its own multi-part voxel body, so the SHAPE
+// tells you what it does before the color does (same "build it from a few boxes" style as the
+// player and the trees). Every part gets its own material instance so per-mob opacity/color
+// tweaks (stealth, shield) never bleed onto other mobs of the same type. ----
+function buildTowerMobVisual(cfg){
+  const s = cfg.size;
+  const group = new THREE.Group();
+  const materials = [];
+  function part(w, h, d, x, y, z, colorOverride){
+    const mat = new THREE.MeshLambertMaterial({ color: colorOverride || cfg.color, transparent: true });
+    mat.userData.baseColor = mat.color.getHex(); // so the warden's shield flash can restore per-part shading
+    materials.push(mat);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    group.add(m);
+    return m;
+  }
+  const dark = (hex, f) => new THREE.Color(hex).multiplyScalar(f).getHex();
+
+  switch(cfg.mechanic){
+    case 'ranged': // slim, tall, with a drawn bow held out to one side
+      part(s*0.5, s*1.3, s*0.5, 0, 0, 0);
+      part(s*0.4, s*0.4, s*0.4, 0, s*0.85, 0, dark(cfg.color, 1.25));
+      part(s*0.08, s*1.0, s*0.08, s*0.45, s*0.1, 0, 0x3a2410);
+      part(s*0.02, s*0.9, s*0.02, s*0.55, s*0.1, 0, 0xdddddd); // bowstring
+      break;
+    case 'invisible': // a floating shard core with fragments drifting off it - reads as "not quite there"
+      part(s*0.6, s*0.6, s*0.6, 0, 0, 0).rotation.y = Math.PI/4;
+      part(s*0.25, s*0.25, s*0.25, s*0.42, s*0.3, s*0.1, dark(cfg.color, 1.3)).rotation.y = Math.PI/4;
+      part(s*0.2, s*0.2, s*0.2, -s*0.38, -s*0.15, -s*0.2, dark(cfg.color, 1.3)).rotation.y = Math.PI/4;
+      part(s*0.15, s*0.15, s*0.15, s*0.1, s*0.5, -s*0.35, dark(cfg.color, 1.3)).rotation.y = Math.PI/4;
+      break;
+    case 'jumper': // compact body perched on two long springy legs
+      part(s*0.7, s*0.55, s*0.7, 0, s*0.2, 0);
+      part(s*0.3, s*0.25, s*0.3, 0, s*0.6, s*0.15, dark(cfg.color, 1.25)); // head, leaning forward
+      part(s*0.16, s*0.6, s*0.16, s*0.24, -s*0.28, 0, dark(cfg.color, 0.7));
+      part(s*0.16, s*0.6, s*0.16, -s*0.24, -s*0.28, 0, dark(cfg.color, 0.7));
+      break;
+    case 'swift': // low, flat, streamlined, with a tail fin - built for speed
+      part(s*1.0, s*0.35, s*0.45, 0, 0, 0);
+      part(s*0.35, s*0.2, s*0.3, s*0.6, s*0.05, 0, dark(cfg.color, 1.25)); // nose
+      part(s*0.25, s*0.4, s*0.1, -s*0.55, s*0.15, 0, dark(cfg.color, 0.75)); // tail fin
+      break;
+    case 'brute': // hulking torso with heavy shoulders and a small head sunk between them
+      part(s*0.75, s*1.0, s*0.7, 0, 0, 0);
+      part(s*0.4, s*0.45, s*0.4, s*0.55, s*0.2, 0, dark(cfg.color, 0.8));
+      part(s*0.4, s*0.45, s*0.4, -s*0.55, s*0.2, 0, dark(cfg.color, 0.8));
+      part(s*0.3, s*0.3, s*0.3, 0, s*0.55, 0, dark(cfg.color, 1.3));
+      break;
+    case 'bomber': // a core studded with spikes on every side, like a mine
+      part(s*0.65, s*0.65, s*0.65, 0, 0, 0);
+      [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].forEach(([dx,dy,dz])=>{
+        part(s*0.16, s*0.16, s*0.16, dx*s*0.48, dy*s*0.48, dz*s*0.48, 0x5a0a0a);
+      });
+      part(s*0.2, s*0.2, s*0.2, 0, s*0.1, s*0.33, 0xffe066); // fuse spark
+      break;
+    case 'phantom': // tall thin figure with a fainter afterimage trailing behind it
+      part(s*0.5, s*0.95, s*0.5, 0, s*0.1, 0);
+      part(s*0.35, s*0.35, s*0.35, 0, s*0.75, 0, dark(cfg.color, 1.25));
+      { const echo = part(s*0.4, s*0.75, s*0.4, -s*0.35, 0, s*0.15); echo.material.opacity = 0.35; }
+      break;
+    case 'warden': // solid body with armored shoulder plates and a shield held out front
+      part(s*0.65, s*0.85, s*0.6, 0, 0, 0);
+      part(s*0.4, s*0.22, s*0.7, s*0.5, s*0.4, 0, dark(cfg.color, 0.75));
+      part(s*0.4, s*0.22, s*0.7, -s*0.5, s*0.4, 0, dark(cfg.color, 0.75));
+      part(s*0.9, s*0.8, s*0.12, 0, -s*0.05, s*0.42, dark(cfg.color, 0.6)); // shield
+      break;
+    default:
+      part(s, s, s, 0, 0, 0);
+  }
+  return { group, materials };
+}
+
+function spawnEnemy(type, fixedPos){
+  const cfg = ENEMY_TYPES[type];
+  let mesh, visualMaterials;
+  if(cfg.mechanic){
+    const built = buildTowerMobVisual(cfg);
+    mesh = built.group; visualMaterials = built.materials;
+  } else {
+    const mat = new THREE.MeshLambertMaterial({ color: cfg.color });
+    mat.transparent = true; // harmless at opacity 1 - lets the invisible-mob mechanic just toggle opacity later
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(cfg.size,cfg.size,cfg.size), mat);
+    mesh.castShadow = true;
+    visualMaterials = [mat];
+  }
+  const pos = fixedPos || randomGroundPos();
+  const baseY = cfg.size/2;
+  mesh.position.set(pos.x, baseY+groundHeightAt(pos.x,pos.z), pos.z);
+
+  const hpBar = makeHpBar(cfg.size/0.5, cfg.hp, cfg.hp);
+  hpBar.group.position.y = cfg.size + 0.15;
+  mesh.add(hpBar.group);
+
+  // skip the aggro-radius ring for "always aware" tower mobs - a 999-radius circle would be
+  // absurd geometry, and the ring's whole point (telegraphing a real trigger distance) doesn't
+  // apply once the fight starts the moment the floor spawns anyway.
+  if(cfg.aggroRadius > 0 && cfg.aggroRadius <= 50){
+    const ringGeo = new THREE.CircleGeometry(cfg.aggroRadius, 32);
+    const ringMat = new THREE.MeshBasicMaterial({ color: type==='boss' ? 0xaa30ff : 0xff3020, transparent:true, opacity:0.12, side:THREE.DoubleSide, depthWrite:false });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI/2;
+    ring.position.y = -baseY+0.02;
+    mesh.add(ring);
+  }
+
+  scene.add(mesh);
+  return { mesh, type, aggroRadius: cfg.aggroRadius, hp:cfg.hp, maxHp:cfg.hp, alive:true, respawnAt:0,
+    wanderTarget: pos.clone(), nextWanderChange: 0, home: pos.clone(), hpBar, baseY,
+    isBoss: type==='boss' || type==='desertboss', isStatic: !!cfg.static,
+    bossState:'idle', bossTelegraphT:0, bossRecoverT:0, nextAttackReady:0, currentAttack:null,
+    telegraphOuter:null, telegraphOuterMat:null, telegraphInner:null, telegraphInnerMat:null,
+    lineGroup:null, lineOuterMat:null, lineInner:null, lineDir:null,
+    // tower-mob-only state (harmless/unused on every other type)
+    isTowerMob:false, xpReward:0, dmgScale:1, invulnerable:false, visualMaterials,
+    jumpState:'idle', jumpT:0, jumpCooldownT:0, jumpFromX:0, jumpFromZ:0, jumpToX:0, jumpToZ:0,
+    stealthT:0, zigzagT:0, shieldT:0, nextBlinkReady:0 };
+}
+for(let i=0;i<8;i++) enemies.push(spawnEnemy(i%2===0 ? 'aggressive' : 'passive'));
+
+// the boss waits at the far end of the cave, opposite the entrance
+enemies.push(spawnEnemy('boss', new THREE.Vector3(CAVE_CENTER.x, 0, CAVE_BOUNDS.maxZ-3)));
+
+// the desert boss sits on top of its pillar - groundHeightAt already resolves to the pillar's
+// height right at its center, so this naturally lands it up there with no special-casing
+enemies.push(spawnEnemy('desertboss', new THREE.Vector3(DESERT_CENTER.x, 0, DESERT_CENTER.z)));
+
+// ================= TOWER FLOORS =================
+let towerFloor = 0; // 0 = no active climb
+let towerMaxFloorReached = 0; // highest floor ever cleared
+// clearing every 10th floor banks a checkpoint - dying or leaving then re-entering drops you
+// back in at that floor instead of all the way down at 1.
+const TOWER_CHECKPOINT_EVERY = 10;
+let towerCheckpoint = 0; // 0 = none yet, otherwise 10/20/30/40
+function towerStartFloor(){ return towerCheckpoint > 0 ? towerCheckpoint : 1; }
+function randomPosInTower(margin=3){
+  const x = randRange(TOWER_BOUNDS.minX+margin, TOWER_BOUNDS.maxX-margin);
+  const z = randRange(TOWER_BOUNDS.minZ+margin, TOWER_BOUNDS.maxZ-margin);
+  return new THREE.Vector3(x, 0, z);
+}
+function spawnTowerMob(type, floor, pos){
+  const en = spawnEnemy(type, pos);
+  const scale = towerFloorScale(floor);
+  en.maxHp = Math.round(en.maxHp * scale);
+  en.hp = en.maxHp;
+  updateHpBar(en);
+  en.isTowerMob = true;
+  en.dmgScale = scale;
+  en.xpReward = Math.round(TOWER_XP_BASE * scale);
+  en.coinReward = Math.round(TOWER_COIN_BASE * scale);
+  enemies.push(en);
+  return en;
+}
+// deterministic per floor (same floor always plays out with the same mob mix), with more mob
+// TYPES mixed together and more total mobs as you climb.
+function towerFloorComposition(floor){
+  const typeCount = Math.min(1 + Math.floor((floor-1)/6), 3);
+  const picks = [];
+  for(let i=0; picks.length<typeCount && i<TOWER_MOB_POOL.length*2; i++){
+    const idx = (floor*7 + i*13) % TOWER_MOB_POOL.length;
+    const t = TOWER_MOB_POOL[idx];
+    if(!picks.includes(t)) picks.push(t);
+  }
+  const count = Math.min(3 + Math.floor((floor-1)/3), 14);
+  return { types: picks, count };
+}
+function clearAllTowerMobs(){
+  for(let i=enemies.length-1; i>=0; i--){
+    if(enemies[i].isTowerMob){
+      scene.remove(enemies[i].mesh);
+      enemies.splice(i,1);
+    }
+  }
+}
+function spawnTowerFloor(floor){
+  clearAllTowerMobs();
+  towerFloor = floor;
+  updateTowerFloorHud();
+  const comp = towerFloorComposition(floor);
+  for(let i=0; i<comp.count; i++){
+    spawnTowerMob(comp.types[i % comp.types.length], floor, randomPosInTower());
+  }
+  toast(`🏯 Étage ${floor} / ${TOWER_FLOOR_COUNT}`);
+}
+function onTowerFloorCleared(){
+  if(towerFloor > towerMaxFloorReached) towerMaxFloorReached = towerFloor;
+  const banked = towerFloor % TOWER_CHECKPOINT_EVERY === 0 && towerFloor > towerCheckpoint;
+  if(banked) towerCheckpoint = towerFloor;
+  if(towerFloor >= TOWER_FLOOR_COUNT){
+    toast('🏆 Tour vaincue ! Bravo, 50 étages !', 3000);
+    return;
+  }
+  if(banked){
+    toast(`🚩 Checkpoint étage ${towerFloor} ! Tu repartiras d'ici.`, 3000);
+    updateTowerFloorHud();
+  } else {
+    toast(`✅ Étage ${towerFloor} nettoyé ! Un escalier est apparu.`);
+  }
+  spawnTowerStair();
+}
+function advanceTowerFloor(){
+  clearTowerStair();
+  spawnTowerFloor(towerFloor+1);
+}
+function handleTowerMobDeath(en){
+  scene.remove(en.mesh);
+  const idx = enemies.indexOf(en);
+  if(idx >= 0) enemies.splice(idx, 1);
+  if(!enemies.some(e => e.isTowerMob && e.alive)) onTowerFloorCleared();
+}
+// the glowing green stairway that appears once a floor is fully cleared - walking into it
+// advances to the next floor (stays in the 'tower' realm, no teleport involved).
+let towerStair = null;
+function spawnTowerStair(){
+  clearTowerStair();
+  const pos = new THREE.Vector3(TOWER_CENTER.x + TOWER_HALF - 3, 0, TOWER_CENTER.z);
+  const group = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.3, 32), new THREE.MeshBasicMaterial({ color:0x30ff70, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false }));
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(1.0, 32), new THREE.MeshBasicMaterial({ color:0x30ff70, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false }));
+  group.add(glow, ring);
+  group.position.set(pos.x, 1.3, pos.z);
+  scene.add(group);
+  towerStair = { group, ring, glow, pos: group.position, spinT: 0 };
+}
+function clearTowerStair(){
+  if(towerStair){ scene.remove(towerStair.group); towerStair = null; }
+}
+function updateTowerStair(dt){
+  if(!towerStair) return;
+  towerStair.spinT += dt;
+  towerStair.ring.rotation.z += dt*0.6;
+  towerStair.ring.material.opacity = 0.7 + 0.15*Math.sin(towerStair.spinT*2.5);
+}
+function updateTowerStairTrigger(){
+  if(!towerStair || teleportCooldownT > 0) return;
+  const dx = player.position.x-towerStair.pos.x, dz = player.position.z-towerStair.pos.z;
+  if(Math.hypot(dx,dz) < 1.1){
+    teleportCooldownT = 1.0;
+    advanceTowerFloor();
+  }
+}
+function updateTowerFloorHud(){
+  const badge = document.getElementById('towerFloorBadge');
+  if(currentRealm==='tower'){
+    badge.style.display = 'block';
+    document.getElementById('towerFloorNum').textContent = towerFloor;
+    document.getElementById('towerCheckpointNum').textContent = towerCheckpoint > 0 ? ` · 🚩 ${towerCheckpoint}` : '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ================= TREES =================
+const TREE_HP = 4, WOOD_YIELD = 4, TREE_RESPAWN_MS = 10000;
+const trunkMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([94,62,35],26) });
+const leavesMat = new THREE.MeshLambertMaterial({ map: makeNoiseTexture([54,120,58],30) });
+const trees = [];
+function spawnTree(){
+  const scale = randRange(0.85, 2.1); // random size - bigger trees are tougher and give more wood
+  const trunkH = (0.85 + randRange(-0.1,0.15)) * scale;
+  const trunkW = 0.3 + 0.07*scale;
+
+  const mesh = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.BoxGeometry(trunkW, trunkH, trunkW), trunkMat);
+  trunk.position.y = trunkH/2; trunk.castShadow = true;
+  mesh.add(trunk);
+
+  const leafCount = 4 + Math.floor(Math.random()*4); // 4-7 leaf clumps, irregular canopy
+  const leafBaseY = trunkH*0.92;
+  const spread = 0.32*scale;
+  for(let i=0;i<leafCount;i++){
+    const ang = (i/leafCount)*Math.PI*2 + Math.random()*0.6;
+    const r = (i===0) ? 0 : spread*(0.6+Math.random()*0.6);
+    const lx = Math.cos(ang)*r, lz = Math.sin(ang)*r;
+    const ly = leafBaseY + randRange(-0.1,0.3)*scale;
+    const leafSize = (0.42 + Math.random()*0.28) * scale;
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafSize,leafSize,leafSize), leavesMat);
+    leaf.position.set(lx,ly,lz); leaf.castShadow = true;
+    mesh.add(leaf);
+  }
+
+  const pos = randomGroundPos();
+  const baseY = 0;
+  mesh.position.set(pos.x, baseY+groundHeightAt(pos.x,pos.z), pos.z);
+
+  const hp = Math.round(TREE_HP * scale);
+  const hpBar = makeHpBar(1, hp, hp);
+  hpBar.group.position.y = leafBaseY + 0.6*scale;
+  mesh.add(hpBar.group);
+
+  scene.add(mesh);
+  return { mesh, hp, maxHp:hp, alive:true, respawnAt:0, hpBar, baseY, scale, hitHeight: trunkH*0.6, hitRadius: 0.4*scale,
+    woodYield: Math.max(1, Math.round(WOOD_YIELD*scale)) };
+}
+for(let i=0;i<10;i++) trees.push(spawnTree());
+function chopTree(tree){
+  tree.hp -= weaponStats.damage;
+  updateHpBar(tree);
+  if(tree.hp <= 0){
+    tree.alive = false; tree.mesh.visible = false; tree.respawnAt = performance.now() + TREE_RESPAWN_MS;
+    inventory.wood += tree.woodYield;
+    updateHud(); updatePaletteCounts();
+    toast(`+${tree.woodYield} Bois`);
+  }
+}
+
+// ================= STATE =================
+// TEMP: seeded high so it's easy to test the level cap, weapon level-ups, and the dash thresholds (1/10/100) - remove later
+const inventory = { ore:20, stone:20, wood:20, atkspeed:20, speedstone:150, lifedrain:5, ultimatestone:0 };
+let playerHp = 10, playerMaxHp = 10;
+let playerLevel = 1, playerXp = 0; // playerXp = progress within the current level, not cumulative
+const HP_PERCENT_PER_LEVELUP = 0.10; // scales with current max HP instead of a flat amount, so it stays meaningful at high levels
+const XP_REWARD = { passive: 5, aggressive: 15, boss: 500, desertboss: 800 };
+function xpToNextLevel(level){ return level * 100; } // 1->2 needs 100, 2->3 needs 200, ...
+let pendingLevelUps = 0, levelUpOpen = false;
+function gainXp(amount){
+  playerXp += amount;
+  while(playerXp >= xpToNextLevel(playerLevel + pendingLevelUps)){
+    playerXp -= xpToNextLevel(playerLevel + pendingLevelUps);
+    pendingLevelUps++;
+  }
+  updateHud();
+  if(pendingLevelUps > 0) openLevelUpChoice();
+}
+function openLevelUpChoice(){
+  levelUpOpen = true;
+  document.getElementById('levelUpPanel').style.display = 'flex';
+  updateLevelUpPanelUI();
+}
+// shows which level is being chosen right now, plus how many more are still queued -
+// without this the panel looked identical before/after each pick, so with 2+ pending
+// level-ups players only ever noticed (and made) the first choice.
+function hpLevelUpGain(){ return Math.max(1, Math.round(playerMaxHp * HP_PERCENT_PER_LEVELUP)); }
+function updateLevelUpPanelUI(){
+  const targetLevel = playerLevel + 1;
+  const extra = pendingLevelUps > 1 ? ` (+${pendingLevelUps-1} en attente)` : '';
+  document.getElementById('levelUpTitle').textContent = `🎉 Niveau ${targetLevel} !${extra}`;
+  document.getElementById('choosePvDesc').textContent = `+10% vie maximum (+${hpLevelUpGain()})`;
+}
+function chooseLevelBonus(kind){
+  if(pendingLevelUps <= 0) return;
+  if(kind === 'hp'){ const gain = hpLevelUpGain(); playerMaxHp += gain; playerHp += gain; }
+  else if(kind === 'force'){ playerForce += 1; }
+  playerLevel++;
+  pendingLevelUps--;
+  computeWeaponStats();
+  updateStatsHud();
+  updateHud();
+  if(pendingLevelUps <= 0){
+    levelUpOpen = false;
+    document.getElementById('levelUpPanel').style.display = 'none';
+    toast(`🎉 Félicitations, niveau ${playerLevel} atteint !`);
+  } else {
+    toast(`Niveau ${playerLevel} !`);
+    updateLevelUpPanelUI();
+  }
+}
+let facing = new THREE.Vector3(0,0,1);
+// the swing itself is always a fixed, quick 200ms lateral cut - immune to weight and to rotating out of it
+// (otherwise a slow heavy swing could be "abused" by turning the character mid-swing to hit all around).
+// what weight actually punishes is the RECOVERY afterwards, during which you can move freely but not attack again.
+const SWING_DURATION = 0.2, BASE_ATTACK_COOLDOWN = 0.15;
+let swinging = false, swingT = 0;
+let atkCoolingDown = false, atkCooldownT = 0;
+let gameOver = false;
+let forgeOpen = false;
+
+// jump / gravity
+const GRAVITY = 18;
+let JUMP_HEIGHT = 1.0; // in blocks; upgrades later can raise this
+let playerY = 0, velocityY = 0, grounded = true;
+function jumpVelocityFor(h){ return Math.sqrt(2*GRAVITY*h); }
+function doJump(){
+  if(gameOver || forgeOpen || levelUpOpen || !grounded) return;
+  velocityY = jumpVelocityFor(JUMP_HEIGHT);
+  grounded = false;
+}
+
+// ---- ground-slam: unlocked only while a Pierre Ultime is attached to the weapon (the boss's
+// own drop, and its own move - beating it earns you the exact thing that hurt you). A forward
+// leap that ends in an AoE burst on landing, radius/damage scaled by the weapon's size and mass -
+// "comme si on écrasait notre arme au sol". Reuses the existing jump/gravity system: it's just a
+// jump with forced forward drift, and the impact triggers the instant it touches back down. ----
+const SLAM_JUMP_HEIGHT = 0.5, SLAM_FORWARD_SPEED = 7, SLAM_COOLDOWN = 3.5;
+const SLAM_BASE_RADIUS = 1.2, SLAM_RADIUS_PER_REACH = 1.3;
+const SLAM_DAMAGE_MULT = 1.6, SLAM_DAMAGE_PER_WEIGHT = 0.3;
+// how long the leap stays airborne, used only to pace the indicator fill - the real landing
+// is still whatever the actual gravity sim says, this is just an estimate for the visual.
+const SLAM_AIRTIME_EST = 2*jumpVelocityFor(SLAM_JUMP_HEIGHT)/GRAVITY;
+const SLAM_DIVE_TILT = Math.PI/2; // fully horizontal at the peak of the leap
+// mid-air version (jump → dash → slam combos): no hop, a hard plunge instead, and the impact
+// grows with how high you were when you triggered it - up to double at 4 blocks.
+const SLAM_DIVE_SPEED = 16, SLAM_AIR_BONUS_PER_BLOCK = 0.25, SLAM_AIR_BONUS_CAP = 1.0;
+const SLAM_VERTICAL_REACH = 3; // blocks of height the shockwave covers, measured from your feet
+let slamActive = false, slamDir = new THREE.Vector3(0,0,1), slamAirT = 0, slamPowerBonus = 0;
+let slamCoolingDown = false, slamCooldownT = 0;
+function hasUltimateStone(){
+  for(const b of weaponBlocks.values()) if(b.type === 'ultimatestone') return true;
+  return false;
+}
+function updateSlamHud(){
+  const btn = document.getElementById('slamBtn');
+  btn.style.display = hasUltimateStone() ? 'flex' : 'none';
+}
+function slamRadius(){ return (SLAM_BASE_RADIUS + weaponStats.maxReach*SLAM_RADIUS_PER_REACH) * (1 + slamPowerBonus); }
+function doSlam(){
+  if(gameOver || forgeOpen || levelUpOpen || swinging || slamActive || slamCoolingDown) return;
+  if(!hasUltimateStone()){ toast("Attache une Pierre Ultime à l'arme pour débloquer l'écrasement"); return; }
+  slamActive = true;
+  slamDir.copy(facing);
+  const airHeight = Math.max(0, playerY - groundHeightAt(player.position.x, player.position.z));
+  if(grounded || airHeight < 0.15){
+    slamAirT = 0;
+    slamPowerBonus = 0;
+    velocityY = jumpVelocityFor(SLAM_JUMP_HEIGHT);
+  } else {
+    slamAirT = SLAM_AIRTIME_EST;           // already up there: go straight to the dive pose and full-size indicator
+    slamPowerBonus = Math.min(SLAM_AIR_BONUS_CAP, airHeight * SLAM_AIR_BONUS_PER_BLOCK);
+    velocityY = -SLAM_DIVE_SPEED;
+  }
+  grounded = false;
+  spawnSlamIndicator();
+}
+// ---- pre-impact indicator: shows the REAL hitbox (same "grows to actual world-unit radius"
+// technique as the boss telegraphs) the whole time you're airborne, following you as you leap -
+// by the time you land it's sitting exactly where the damage will land. ----
+let slamIndicator = null, slamIndicatorMat = null;
+function spawnSlamIndicator(){
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color:0xff5030, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
+  mesh.rotation.x = -Math.PI/2;
+  mesh.position.set(player.position.x, 0.05, player.position.z);
+  mesh.scale.set(0.05, 0.05, 1);
+  scene.add(mesh);
+  slamIndicator = mesh;
+  slamIndicatorMat = mesh.material;
+}
+function updateSlamIndicator(){
+  if(!slamIndicator) return;
+  const radius = slamRadius();
+  const p = Math.min(slamAirT/SLAM_AIRTIME_EST, 1);
+  const r = Math.max(0.05, p*radius);
+  slamIndicator.scale.set(r, r, 1);
+  slamIndicator.position.x = player.position.x;
+  slamIndicator.position.z = player.position.z;
+}
+function removeSlamIndicator(){
+  if(slamIndicator){ scene.remove(slamIndicator); slamIndicator.material.dispose(); slamIndicator=null; slamIndicatorMat=null; }
+}
+function performSlamImpact(){
+  const radius = slamRadius();
+  const damage = (weaponStats.damage*SLAM_DAMAGE_MULT + weaponStats.weight*SLAM_DAMAGE_PER_WEIGHT) * (1 + slamPowerBonus);
+  const aerial = slamPowerBonus > 0;
+  let hitCount = 0;
+  // a vertical cylinder, not a sphere: `radius` horizontally, but a fixed 3 blocks of height
+  // measured from your feet. Keeps the shockwave from silently growing upward with a long
+  // weapon (which let a ground slam reach the desert boss on its pillar and skip the whole
+  // "build a taller sword" puzzle) - to slam something that high you now have to BE up there.
+  enemies.forEach(en=>{
+    if(!en.alive) return;
+    const dx = en.mesh.position.x - player.position.x, dz = en.mesh.position.z - player.position.z;
+    const dy = en.mesh.position.y - playerY;
+    if(Math.hypot(dx,dz) < radius && dy >= -1 && dy <= SLAM_VERTICAL_REACH){
+      damageEnemy(en, damage);
+      hitCount++;
+    }
+  });
+  removeSlamIndicator();
+  spawnSlamShockwave(player.position, radius);
+  slamCoolingDown = true; slamCooldownT = 0;
+  const label = aerial ? `💥 Écrasement aérien ! +${Math.round(slamPowerBonus*100)}%` : '💥 Écrasement !';
+  toast(hitCount > 0 ? `${label} · ${hitCount} ennemi(s) touché(s)` : label);
+  slamPowerBonus = 0;
+}
+const slamShockwaveMat = new THREE.MeshBasicMaterial({ color:0xff5030, transparent:true, opacity:0.5, side:THREE.DoubleSide, depthWrite:false });
+const slamShockwaves = []; // {mesh, life, duration}
+function spawnSlamShockwave(pos, radius){
+  // a thin ring right at radius 1 pre-scale, so scaling by r lands the ring at EXACTLY radius r -
+  // the old version scaled a 0.3-radius ring, which rendered at less than a third of the real hitbox.
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 40), slamShockwaveMat.clone());
+  ring.rotation.x = -Math.PI/2;
+  ring.position.set(pos.x, 0.06, pos.z);
+  ring.scale.set(0.05, 0.05, 1);
+  scene.add(ring);
+  slamShockwaves.push({ mesh: ring, life: 0, duration: 0.4, radius });
+}
+function updateSlamShockwaves(dt){
+  for(let i=slamShockwaves.length-1; i>=0; i--){
+    const sw = slamShockwaves[i];
+    sw.life += dt;
+    const p = Math.min(sw.life/sw.duration, 1);
+    const r = Math.max(0.05, p*sw.radius);
+    sw.mesh.scale.set(r, r, 1);
+    sw.mesh.material.opacity = 0.5*(1-p);
+    if(p >= 1){ scene.remove(sw.mesh); sw.mesh.material.dispose(); slamShockwaves.splice(i,1); }
+  }
+}
+function updateSlamCooldown(dt){
+  const btn = document.getElementById('slamBtn');
+  if(slamCoolingDown){
+    slamCooldownT += dt;
+    if(slamCooldownT >= SLAM_COOLDOWN) slamCoolingDown = false;
+  }
+  btn.classList.toggle('onCooldown', slamCoolingDown);
+}
+
+// dash - unlocked by attaching speed stones to the BOOTS (thresholds, not linear): 1 stone = 1 dash, 10 = 2, 100 = 3
+function computeBootsStats(){
+  const charges = dashChargesForCount(bootsSpeedStones);
+  if(charges > prevMaxDash) dashCharges_current += (charges - prevMaxDash); // gaining a slot fills it
+  maxDashCharges = charges;
+  dashCharges_current = Math.min(dashCharges_current, maxDashCharges);
+  prevMaxDash = charges;
+  updateDashHud();
+}
+// dash trail: translucent "hologram" copies of the player left behind along the path, fading out,
+// so it reads as a fast propulsion rather than an instant teleport.
+const DASH_GHOST_LIFETIME = 0.35;
+const dashGhostBodyMat = new THREE.MeshBasicMaterial({ color:0x7ad4ff, transparent:true, opacity:0.4 });
+const dashGhostHeadMat = new THREE.MeshBasicMaterial({ color:0xbfeaff, transparent:true, opacity:0.4 });
+const dashGhosts = []; // {group, bodyMat, headMat, life}
+function spawnDashGhost(pos, rotY){
+  const bMat = dashGhostBodyMat.clone(), hMat = dashGhostHeadMat.clone();
+  const g = new THREE.Group();
+  const b = new THREE.Mesh(body.geometry, bMat); b.position.copy(body.position);
+  const h = new THREE.Mesh(head.geometry, hMat); h.position.copy(head.position);
+  g.add(b, h);
+  g.position.copy(pos);
+  g.rotation.y = rotY;
+  scene.add(g);
+  dashGhosts.push({ group:g, bodyMat:bMat, headMat:hMat, life:DASH_GHOST_LIFETIME });
+}
+function updateDashGhosts(dt){
+  for(let i=dashGhosts.length-1; i>=0; i--){
+    const g = dashGhosts[i];
+    g.life -= dt;
+    if(g.life <= 0){ scene.remove(g.group); dashGhosts.splice(i,1); continue; }
+    const t = g.life/DASH_GHOST_LIFETIME;
+    g.bodyMat.opacity = 0.4*t; g.headMat.opacity = 0.4*t;
+  }
+}
+
+let dashAnim = null; // {fromX,fromZ,toX,toZ,t,duration,lastGhostT}
+function doDash(){
+  if(gameOver || forgeOpen || levelUpOpen || dashOnCooldown) return;
+  if(maxDashCharges <= 0){ toast("Attache une pierre de vitesse aux bottes pour débloquer le dash"); return; }
+  if(dashCharges_current <= 0) return;
+  dashCharges_current -= 1;
+  dashOnCooldown = true;
+  setTimeout(()=>dashOnCooldown=false, DASH_COOLDOWN*1000);
+  let newX = THREE.MathUtils.clamp(player.position.x + facing.x*DASH_DISTANCE, realmMinX(), realmMaxX());
+  let newZ = THREE.MathUtils.clamp(player.position.z + facing.z*DASH_DISTANCE, realmMinZ(), realmMaxZ());
+  // don't let a dash end inside a column you haven't cleared - stop short at the last free spot
+  if(playerY < platformHeightAt(newX, newZ) - 0.3){
+    let okX = player.position.x, okZ = player.position.z;
+    for(let s=0.2; s<=1; s+=0.2){
+      const tx = player.position.x + (newX-player.position.x)*s;
+      const tz = player.position.z + (newZ-player.position.z)*s;
+      if(playerY < platformHeightAt(tx, tz) - 0.3) break;
+      okX = tx; okZ = tz;
+    }
+    newX = okX; newZ = okZ;
+  }
+  dashAnim = { fromX:player.position.x, fromZ:player.position.z, toX:newX, toZ:newZ, t:0, duration:0.16, lastGhostT:-1 };
+  updateDashHud();
+}
+function updateDashAnim(dt){
+  if(!dashAnim) return;
+  dashAnim.t += dt;
+  const p = Math.min(dashAnim.t/dashAnim.duration, 1);
+  const eased = 1 - Math.pow(1-p, 3); // fast start, quick settle - a real propulsion, not a linear slide
+  player.position.x = dashAnim.fromX + (dashAnim.toX-dashAnim.fromX)*eased;
+  player.position.z = dashAnim.fromZ + (dashAnim.toZ-dashAnim.fromZ)*eased;
+  if(dashAnim.t - dashAnim.lastGhostT > 0.025){
+    spawnDashGhost(player.position, player.rotation.y);
+    dashAnim.lastGhostT = dashAnim.t;
+  }
+  if(p >= 1) dashAnim = null;
+}
+function updateDashHud(){
+  const btn = document.getElementById('dashBtn');
+  if(maxDashCharges <= 0){ btn.style.display = 'none'; return; }
+  btn.style.display = 'flex';
+  btn.textContent = `DASH ${dashCharges_current}/${maxDashCharges}`;
+}
+
+function updateHud(){
+  document.getElementById('coinCount').textContent = coins;
+  document.getElementById('oreCount').textContent = inventory.ore;
+  document.getElementById('stoneCount').textContent = inventory.stone;
+  document.getElementById('woodCount').textContent = inventory.wood;
+  document.getElementById('atkspeedCount').textContent = inventory.atkspeed;
+  document.getElementById('speedstoneCount').textContent = inventory.speedstone;
+  document.getElementById('lifedrainCount').textContent = inventory.lifedrain;
+  document.getElementById('ultimatestoneCount').textContent = inventory.ultimatestone;
+  document.getElementById('hpBar').style.width = Math.max(0,(playerHp/playerMaxHp*100)) + '%';
+  document.getElementById('hpText').textContent = `${Math.max(0,Math.ceil(playerHp))}/${playerMaxHp}`;
+  document.getElementById('levelCount').textContent = playerLevel;
+  document.getElementById('xpBar').style.width = Math.max(0, playerXp/xpToNextLevel(playerLevel+pendingLevelUps)*100) + '%';
+}
+updateHud();
+
+// ---- minimap: a flat 2D top-down schematic (not a real 3D render, cheap to redraw every
+// frame), player-centered and north-up. Boss = skull, regular monster = red dot,
+// resource node = white dot - only things within range are plotted at all. ----
+const minimapCanvas = document.getElementById('minimapCanvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+const MINIMAP_RANGE = 40; // world units from center to edge
+function drawMinimapDot(px, py, color, radius){
+  minimapCtx.fillStyle = color;
+  minimapCtx.beginPath();
+  minimapCtx.arc(px, py, radius, 0, Math.PI*2);
+  minimapCtx.fill();
+}
+function updateMinimap(){
+  const w = minimapCanvas.width, h = minimapCanvas.height;
+  const cx = w/2, cy = h/2;
+  const scale = (w/2) / MINIMAP_RANGE;
+  minimapCtx.clearRect(0, 0, w, h);
+
+  function project(x, z){
+    const dx = x - player.position.x, dz = z - player.position.z;
+    if(Math.hypot(dx,dz) > MINIMAP_RANGE) return null;
+    return { px: cx + dx*scale, py: cy + dz*scale };
+  }
+
+  nodes.forEach(n=>{
+    if(!n.alive) return;
+    const p = project(n.mesh.position.x, n.mesh.position.z);
+    if(p) drawMinimapDot(p.px, p.py, '#ffffff', 2.2);
+  });
+  mineCrystals.forEach(c=>{
+    const p = project(c.mesh.position.x, c.mesh.position.z);
+    if(p) drawMinimapDot(p.px, p.py, '#ffffff', 2.6);
+  });
+  enemies.forEach(en=>{
+    if(!en.alive) return;
+    const p = project(en.mesh.position.x, en.mesh.position.z);
+    if(!p) return;
+    if(en.isBoss){
+      minimapCtx.font = '13px sans-serif';
+      minimapCtx.textAlign = 'center';
+      minimapCtx.textBaseline = 'middle';
+      minimapCtx.fillText('💀', p.px, p.py);
+    } else {
+      drawMinimapDot(p.px, p.py, '#ff3b30', 2.6);
+    }
+  });
+
+  // player marker, always dead center, with a short heading tick
+  drawMinimapDot(cx, cy, '#3d7dff', 4);
+  minimapCtx.strokeStyle = '#3d7dff';
+  minimapCtx.lineWidth = 2;
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(cx, cy);
+  minimapCtx.lineTo(cx + Math.sin(player.rotation.y)*8, cy + Math.cos(player.rotation.y)*8);
+  minimapCtx.stroke();
+}
+
+function toast(msg, ms=900){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>el.classList.remove('show'), ms);
+}
+
+// ================= JOYSTICK =================
+const joy = document.getElementById('joystick');
+const joyNub = document.getElementById('joyNub');
+let joyVec = {x:0,y:0};
+let joyActive = false, joyId = null, joyCenter = {x:0,y:0};
+function joyStart(id, cx, cy){
+  const rect = joy.getBoundingClientRect();
+  joyCenter = { x: rect.left+rect.width/2, y: rect.top+rect.height/2 };
+  joyActive = true; joyId = id;
+  joyMove(cx, cy);
+}
+function joyMove(cx, cy){
+  if(!joyActive) return;
+  let dx = cx - joyCenter.x, dy = cy - joyCenter.y;
+  const max = 40;
+  const dist = Math.min(Math.hypot(dx,dy), max);
+  const ang = Math.atan2(dy,dx);
+  dx = Math.cos(ang)*dist; dy = Math.sin(ang)*dist;
+  joyNub.style.left = (35+dx) + 'px';
+  joyNub.style.top = (35+dy) + 'px';
+  joyVec.x = dx/max; joyVec.y = dy/max;
+}
+function joyEnd(){ joyActive=false; joyId=null; joyVec={x:0,y:0}; joyNub.style.left='35px'; joyNub.style.top='35px'; }
+joy.addEventListener('touchstart', e=>{ e.preventDefault(); const t=e.changedTouches[0]; joyStart(t.identifier, t.clientX, t.clientY); }, {passive:false});
+joy.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===joyId) joyMove(t.clientX,t.clientY); } }, {passive:false});
+window.addEventListener('touchend', e=>{ for(const t of e.changedTouches){ if(t.identifier===joyId) joyEnd(); } });
+joy.addEventListener('mousedown', e=>{ joyStart('mouse', e.clientX, e.clientY); });
+window.addEventListener('mousemove', e=>{ if(joyId==='mouse') joyMove(e.clientX,e.clientY); });
+window.addEventListener('mouseup', ()=>{ if(joyId==='mouse') joyEnd(); });
+
+const keys = {};
+window.addEventListener('keydown', e=>keys[e.key.toLowerCase()]=true);
+window.addEventListener('keyup', e=>keys[e.key.toLowerCase()]=false);
+function keyboardVec(){
+  let x=0,y=0;
+  if(keys['w']||keys['arrowup']) y -= 1;
+  if(keys['s']||keys['arrowdown']) y += 1;
+  if(keys['a']||keys['arrowleft']) x -= 1;
+  if(keys['d']||keys['arrowright']) x += 1;
+  return {x,y};
+}
+
+// ================= ATTACK =================
+const atkCooldownOverlay = document.getElementById('atkCooldownOverlay');
+
+function mineNode(n){
+  n.alive = false; n.mesh.visible = false; n.respawnAt = performance.now() + 8000;
+  inventory[n.kind] += 1;
+  updateHud();
+  updatePaletteCounts();
+  toast('+1 ' + MATERIAL_STATS[n.kind].label);
+}
+function damageEnemy(en, dmg){
+  if(en.invulnerable){ toast('🛡️ Bloqué !'); return; } // the warden mob's periodic shield phase
+  if(dmg === undefined) dmg = weaponStats.damage;
+  en.hp -= dmg;
+  updateHpBar(en);
+  spawnDamageNumber(en.mesh.position, dmg);
+  if(weaponStats.lifeDrain > 0){
+    playerHp = Math.min(playerMaxHp, playerHp + dmg*weaponStats.lifeDrain);
+    updateHud();
+  }
+  if(en.hp <= 0){
+    en.alive=false; en.mesh.visible=false;
+    en.respawnAt = performance.now() + (en.isBoss ? BOSS_RESPAWN_MS : 6000);
+    const xp = en.isTowerMob ? en.xpReward : XP_REWARD[en.type];
+    gainXp(xp);
+    const coinGain = en.isTowerMob ? en.coinReward : (COIN_REWARD[en.type] || 0);
+    coins += coinGain;
+    updateHud();
+    if(en.type === 'boss'){
+      removeBossTelegraphRing(en);
+      removeBossLineTelegraph(en);
+      en.bossState = 'idle';
+      if(!ultimateStoneDropped){
+        ultimateStoneDropped = true;
+        inventory.ultimatestone += 1;
+        updateHud(); updatePaletteCounts();
+        toast(`👑 Boss vaincu ! +${xp} XP · +${coinGain} 🪙 · 💎 Pierre Ultime obtenue !`, 2500);
+      } else {
+        // it's a one-time drop - refarming the boss gives something else instead
+        inventory.atkspeed += 5;
+        updateHud(); updatePaletteCounts();
+        toast(`👑 Boss vaincu ! +${xp} XP · +${coinGain} 🪙 · +5 🔷 Vit. Attaque`, 2500);
+      }
+      unlockDesertPortal();
+      unlockTowerPortal(); // no-op until the desert boss has also fallen at least once
+    } else if(en.type === 'desertboss'){
+      toast(`🏜️ Boss du désert vaincu ! +${xp} XP · +${coinGain} 🪙`, 2500);
+      desertBossDefeatedOnce = true;
+      unlockTowerPortal();
+    } else if(en.isTowerMob){
+      handleTowerMobDeath(en);
+    } else {
+      toast(`Monstre vaincu ! +${xp} XP · +${coinGain} 🪙`);
+    }
+  }
+}
+
+// real hitboxes: every frame during the swing, check the CURRENT world position of each
+// weapon block (wherever the swing animation has actually rotated it to) against every
+// enemy/node's position - a genuine sphere-vs-sphere collision, not an angle estimate.
+// Also sample midpoints between CONNECTED blocks' live positions - for a long, thin weapon
+// the gap between two block centers can exceed a target's radius even though the blade
+// visually passes right through it, so the extra samples keep the whole blade solid.
+const HIT_BLOCK_RADIUS = WBLOCK*0.8, HIT_ENEMY_RADIUS = 0.35, HIT_NODE_RADIUS = 0.4;
+let hitEnemiesThisSwing = new Set(), hitNodesThisSwing = new Set(), hitTreesThisSwing = new Set(), hitCrystalsThisSwing = new Set();
+// walks the horizontal (XZ) line from `from` to `to` and checks each step against
+// platformHeightAt (the same solid-obstacle test cave walls/platforms/the desert pillar already
+// use for movement) against the TARGET point's own height, not an interpolated one - so a blade
+// that ends up higher than the wall counts as reaching over it, same as platforms already let
+// you clear them once you're elevated enough, rather than needing to stay below wall height the
+// entire way there (which would also wrongly block a blade raised straight up right next to an
+// obstacle, e.g. the desert pillar, even though its tip clears the top just fine).
+function segmentBlockedByWall(from, to){
+  const dx = to.x-from.x, dz = to.z-from.z;
+  const dist = Math.hypot(dx,dz);
+  if(dist < 0.01) return false;
+  const steps = Math.max(2, Math.ceil(dist/0.3));
+  for(let i=1; i<steps; i++){ // skip 0 (the hilt itself) and steps (the point being tested)
+    const t = i/steps;
+    const x = from.x + dx*t;
+    const z = from.z + dz*t;
+    if(platformHeightAt(x,z) > to.y) return true;
+  }
+  return false;
+}
+function checkSwingHits(){
+  player.updateMatrixWorld(true);
+
+  const meshByKey = new Map();
+  const worldPosByKey = new Map();
+  for(const blockMesh of gameWeaponMesh.children){
+    const ud = blockMesh.userData;
+    const k = keyOf(ud.x, ud.y, ud.z);
+    meshByKey.set(k, blockMesh);
+    const p = new THREE.Vector3();
+    blockMesh.getWorldPosition(p);
+    worldPosByKey.set(k, p);
+  }
+
+  const samplePoints = Array.from(worldPosByKey.values());
+  for(const b of weaponBlocks.values()){
+    const kA = keyOf(b.x,b.y,b.z);
+    const pA = worldPosByKey.get(kA);
+    if(!pA) continue;
+    for(const [dx,dy,dz] of NEIGHBOR_OFFSETS){
+      const kB = keyOf(b.x+dx, b.y+dy, b.z+dz);
+      const pB = worldPosByKey.get(kB);
+      if(!pB) continue;
+      samplePoints.push(pA.clone().lerp(pB, 0.5));
+    }
+  }
+
+  // a long enough blade could otherwise poke straight through a cave wall or the desert pillar
+  // and hit whatever's on the other side. From the hilt out to the tip is fair game, but the
+  // moment the blade's path crosses a wall taller than it is at that point, everything past
+  // that point (farther from the hilt) is excluded - same "solid" test movement already uses.
+  const hiltPos = worldPosByKey.get(keyOf(0,0,0));
+  const visiblePoints = hiltPos ? samplePoints.filter(pt => !segmentBlockedByWall(hiltPos, pt)) : samplePoints;
+
+  for(const pt of visiblePoints){
+    for(const n of nodes){
+      if(!n.alive || hitNodesThisSwing.has(n)) continue;
+      if(pt.distanceTo(n.mesh.position) < HIT_BLOCK_RADIUS + HIT_NODE_RADIUS){
+        hitNodesThisSwing.add(n);
+        mineNode(n);
+      }
+    }
+    for(const c of [...mineCrystals]){ // snapshot: collecting splices the live array
+      if(hitCrystalsThisSwing.has(c)) continue;
+      if(pt.distanceTo(c.mesh.position) < HIT_BLOCK_RADIUS + HIT_NODE_RADIUS){
+        hitCrystalsThisSwing.add(c);
+        collectMineCrystal(c);
+      }
+    }
+    for(const en of enemies){
+      if(!en.alive || hitEnemiesThisSwing.has(en)) continue;
+      if(pt.distanceTo(en.mesh.position) < HIT_BLOCK_RADIUS + HIT_ENEMY_RADIUS){
+        hitEnemiesThisSwing.add(en);
+        damageEnemy(en);
+      }
+    }
+    for(const tr of trees){
+      if(!tr.alive || hitTreesThisSwing.has(tr)) continue;
+      const treeHitPoint = tr.mesh.position.clone(); treeHitPoint.y += tr.hitHeight;
+      if(pt.distanceTo(treeHitPoint) < HIT_BLOCK_RADIUS + tr.hitRadius){
+        hitTreesThisSwing.add(tr);
+        chopTree(tr);
+      }
+    }
+  }
+}
+
+function doAttack(){
+  if(swinging || atkCoolingDown || gameOver || forgeOpen || levelUpOpen) return;
+  swinging = true; swingT = 0;
+  hitEnemiesThisSwing = new Set();
+  hitNodesThisSwing = new Set();
+  hitTreesThisSwing = new Set();
+  hitCrystalsThisSwing = new Set();
+}
+document.getElementById('attackBtn').addEventListener('touchstart', e=>{ e.preventDefault(); doAttack(); }, {passive:false});
+document.getElementById('attackBtn').addEventListener('mousedown', doAttack);
+window.addEventListener('keydown', e=>{ if(e.key===' ') doAttack(); });
+
+document.getElementById('jumpBtn').addEventListener('touchstart', e=>{ e.preventDefault(); doJump(); }, {passive:false});
+document.getElementById('jumpBtn').addEventListener('mousedown', doJump);
+window.addEventListener('keydown', e=>{ if(e.key==='Shift') doJump(); });
+
+// ================= GAME CAMERA (free 360 orbit - fixed unless you drag to look around) =================
+let camYaw = 0, camPitch = 0.42; // pitch: ~0=eye level, near CAM_MAX_PITCH=looking straight down
+const CAM_DISTANCE = 4.2, CAM_LOOK_HEIGHT = 1.0;
+const CAM_MIN_PITCH = -0.15, CAM_MAX_PITCH = 1.5; // clamp short of the poles to avoid flipping
+function camForwardVec(){ return new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw)); }
+function camRightVec(){ return new THREE.Vector3(-Math.cos(camYaw), 0, Math.sin(camYaw)); }
+function updateCamera(){
+  const horiz = CAM_DISTANCE * Math.cos(camPitch);
+  const desired = new THREE.Vector3(
+    player.position.x + Math.sin(camYaw) * -horiz,
+    player.position.y + CAM_LOOK_HEIGHT + CAM_DISTANCE * Math.sin(camPitch),
+    player.position.z + Math.cos(camYaw) * -horiz
+  );
+  camera.position.lerp(desired, 0.2);
+  camera.lookAt(player.position.x, player.position.y + CAM_LOOK_HEIGHT, player.position.z);
+}
+
+// drag anywhere on the game view (not the joystick/buttons, those are separate elements) to orbit freely, top-down included
+const gameCamPointers = new Map();
+renderer.domElement.addEventListener('pointerdown', e=>{
+  if(forgeOpen) return;
+  gameCamPointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+});
+renderer.domElement.addEventListener('pointermove', e=>{
+  if(forgeOpen || !gameCamPointers.has(e.pointerId)) return;
+  const prev = gameCamPointers.get(e.pointerId);
+  const curr = {x:e.clientX, y:e.clientY};
+  gameCamPointers.set(e.pointerId, curr);
+  camYaw -= (curr.x-prev.x) * 0.006;
+  camPitch = THREE.MathUtils.clamp(camPitch + (curr.y-prev.y) * 0.006, CAM_MIN_PITCH, CAM_MAX_PITCH);
+});
+renderer.domElement.addEventListener('pointerup', e=>gameCamPointers.delete(e.pointerId));
+renderer.domElement.addEventListener('pointercancel', e=>gameCamPointers.delete(e.pointerId));
+
+// ================= FORGE SCENE =================
+const forgeScene = new THREE.Scene();
+forgeScene.background = new THREE.Color(0x1c2230);
+const forgeCamera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.05, 50);
+// face-on default: camera to the side of the blade, looking straight across its length
+forgeCamera.position.set(1.6, 0.3, 0);
+
+const forgeHemi = new THREE.HemisphereLight(0xffffff, 0x333344, 1.0);
+forgeScene.add(forgeHemi);
+const forgeKey = new THREE.DirectionalLight(0xffffff, 1.0);
+forgeKey.position.set(3,4,2);
+forgeScene.add(forgeKey);
+
+const forgeWeaponGroup = new THREE.Group();
+forgeScene.add(forgeWeaponGroup);
+
+function refreshForgeWeaponMesh(){
+  forgeWeaponGroup.clear();
+  forgeWeaponGroup.add(buildWeaponMeshGroup());
+  updateForgeCapUI();
+  updateWeaponLevelUI();
+}
+function updateForgeCapUI(){
+  const max = maxBlocksForLevel(weaponLevel);
+  const atCap = weaponBlocks.size >= max;
+  document.getElementById('blockCount').textContent = weaponBlocks.size + ' / ' + max;
+  document.getElementById('weaponLevelBtn').textContent = `📈 Niveau ${weaponLevel} (${weaponBlocks.size}/${max})`;
+  Object.values(paletteButtons).forEach(btn => btn.classList.toggle('atCap', atCap));
+}
+
+function updateWeaponLevelUI(){
+  const max = maxBlocksForLevel(weaponLevel);
+  const cost = levelUpCost(weaponLevel);
+  const costText = Object.entries(cost).map(([mat,qty])=>`${qty} ${MATERIAL_STATS[mat].label}`).join(' + ');
+  document.getElementById('weaponLevelText').textContent = `Niveau ${weaponLevel} (suivant : ${costText})`;
+  document.getElementById('blockCountText').textContent = `${weaponBlocks.size} / ${max} blocs`;
+}
+function openWeaponLevelPanel(){
+  document.getElementById('weaponLevelPanel').style.display = 'flex';
+  updateWeaponLevelUI();
+}
+function closeWeaponLevelPanel(){
+  document.getElementById('weaponLevelPanel').style.display = 'none';
+}
+document.getElementById('weaponLevelBtn').addEventListener('click', openWeaponLevelPanel);
+document.getElementById('closeWeaponLevelBtn').addEventListener('click', closeWeaponLevelPanel);
+document.getElementById('levelUpWeaponBtn').addEventListener('click', ()=>{
+  const cost = levelUpCost(weaponLevel);
+  const missing = Object.entries(cost).filter(([mat,qty]) => inventory[mat] < qty);
+  if(missing.length){
+    toast('Il manque : ' + missing.map(([mat,qty])=>`${qty-inventory[mat]} ${MATERIAL_STATS[mat].label}`).join(', '));
+    return;
+  }
+  for(const [mat,qty] of Object.entries(cost)) inventory[mat] -= qty;
+  weaponLevel++;
+  updateHud(); updatePaletteCounts(); updateForgeCapUI(); updateWeaponLevelUI();
+  toast(`Arme niveau ${weaponLevel} !`);
+});
+
+function updatePaletteCounts(){
+  document.getElementById('palOreCount').textContent = inventory.ore;
+  document.getElementById('palStoneCount').textContent = inventory.stone;
+  document.getElementById('palWoodCount').textContent = inventory.wood;
+  document.getElementById('palAtkspeedCount').textContent = inventory.atkspeed;
+  document.getElementById('palLifedrainCount').textContent = inventory.lifedrain;
+  document.getElementById('palUltimatestoneCount').textContent = inventory.ultimatestone;
+}
+updatePaletteCounts();
+
+// ---- hand-rolled orbit camera (one finger = rotate, two fingers = zoom/pan) ----
+// OrbitControls' built-in pointer capture throws on iOS Safari and gets stuck mid-gesture,
+// so this avoids that library entirely and just tracks raw pointer events ourselves.
+const orbitState = {
+  target: new THREE.Vector3(0, 0, 0.25*WBLOCK),
+  yaw: Math.PI/2,
+  pitch: 0.18,
+  dist: 1.8,
+};
+const ORBIT_MIN_DIST = 0.35, ORBIT_MAX_DIST = 25;
+function applyOrbitCamera(){
+  const { target, yaw, pitch, dist } = orbitState;
+  forgeCamera.position.set(
+    target.x + dist * Math.cos(pitch) * Math.sin(yaw),
+    target.y + dist * Math.sin(pitch),
+    target.z + dist * Math.cos(pitch) * Math.cos(yaw)
+  );
+  forgeCamera.lookAt(target);
+  forgeCamera.updateMatrixWorld();
+}
+applyOrbitCamera();
+
+const orbitPointers = new Map(); // pointerId -> {x,y}
+let orbitPinchDist = null, orbitPinchMid = null;
+function orbitPointerDown(e){
+  if(!forgeOpen) return;
+  orbitPointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+}
+function orbitPointerMove(e){
+  if(!forgeOpen || !orbitPointers.has(e.pointerId)) return;
+  const prev = orbitPointers.get(e.pointerId);
+  const curr = {x:e.clientX, y:e.clientY};
+  orbitPointers.set(e.pointerId, curr);
+
+  if(orbitPointers.size === 1){
+    orbitState.yaw -= (curr.x-prev.x) * 0.006;
+    orbitState.pitch = THREE.MathUtils.clamp(orbitState.pitch + (curr.y-prev.y)*0.006, -1.3, 1.3);
+    applyOrbitCamera();
+  } else if(orbitPointers.size === 2){
+    const pts = Array.from(orbitPointers.values());
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    const mid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+    if(orbitPinchDist != null && dist > 0){
+      orbitState.dist = THREE.MathUtils.clamp(orbitState.dist * (orbitPinchDist/dist), ORBIT_MIN_DIST, ORBIT_MAX_DIST);
+    }
+    if(orbitPinchMid){
+      const panScale = orbitState.dist * 0.0016;
+      const dir = new THREE.Vector3(); forgeCamera.getWorldDirection(dir);
+      const right = new THREE.Vector3().crossVectors(dir, forgeCamera.up).normalize();
+      const up = new THREE.Vector3().crossVectors(right, dir).normalize();
+      orbitState.target.addScaledVector(right, -(mid.x-orbitPinchMid.x)*panScale);
+      orbitState.target.addScaledVector(up, (mid.y-orbitPinchMid.y)*panScale);
+    }
+    orbitPinchDist = dist;
+    orbitPinchMid = mid;
+    applyOrbitCamera();
+  }
+}
+function orbitPointerUp(e){
+  orbitPointers.delete(e.pointerId);
+  if(orbitPointers.size < 2){ orbitPinchDist = null; orbitPinchMid = null; }
+}
+renderer.domElement.addEventListener('pointerdown', orbitPointerDown);
+renderer.domElement.addEventListener('pointermove', orbitPointerMove);
+renderer.domElement.addEventListener('pointerup', orbitPointerUp);
+renderer.domElement.addEventListener('pointercancel', orbitPointerUp);
+
+// ---- drag a cube from the inventory palette onto the weapon ----
+// Instead of intersecting a fixed depth plane (which missed constantly - a block off to the
+// side or at a different depth than the plane's anchor point could be "aimed at" on screen but
+// nowhere near the plane's 3D point there), this finds whichever candidate slot the aiming ray
+// actually passes closest to, at ANY depth. Much more forgiving, closer to "point at it".
+const raycaster = new THREE.Raycaster();
+const heldGeo = new THREE.BoxGeometry(WBLOCK*0.85, WBLOCK*0.85, WBLOCK*0.85);
+const heldMatInvalid = new THREE.MeshLambertMaterial({ color:0xe23c3c });
+let heldCube = null; // { mesh, type, snapPos }
+let activePointerId = null;
+
+function screenToNdc(clientX, clientY){
+  return new THREE.Vector2((clientX/window.innerWidth)*2-1, -(clientY/window.innerHeight)*2+1);
+}
+// generic: given a ray and a list of {x,y,z} grid points, find the one the ray passes nearest to
+function closestGridPointToRay(ray, points, tolerance){
+  let best = null, bestDist = Infinity;
+  for(const p of points){
+    const wp = new THREE.Vector3(p.x*WBLOCK, p.y*WBLOCK, p.z*WBLOCK);
+    const toP = wp.clone().sub(ray.origin);
+    const t = Math.max(0, toP.dot(ray.direction));
+    const closest = ray.origin.clone().addScaledVector(ray.direction, t);
+    const d = closest.distanceTo(wp);
+    if(d < bestDist){ bestDist = d; best = p; }
+  }
+  return (best && bestDist < tolerance) ? best : null;
+}
+// touch fingers are much less precise than a mouse pointer, and blocks are tiny (WBLOCK=0.22) -
+// a tolerance of only 1.3x that made valid slots feel nearly impossible to hit on a phone
+const FORGE_AIM_TOLERANCE = WBLOCK*2.6;
+function nearestValidSlot(ray){
+  return closestGridPointToRay(ray, getValidPlacements(), FORGE_AIM_TOLERANCE);
+}
+
+function startDrag(type, btn, clientX, clientY, pointerId){
+  if(inventory[type] <= 0){ toast("Tu n'as pas de " + MATERIAL_STATS[type].label); return; }
+  const maxBlocks = maxBlocksForLevel(weaponLevel);
+  if(weaponBlocks.size >= maxBlocks){ toast(`Arme niveau ${weaponLevel} : ${maxBlocks} blocs maximum`); return; }
+  activePointerId = pointerId;
+  const mesh = new THREE.Mesh(heldGeo, heldMatInvalid);
+  forgeScene.add(mesh);
+  heldCube = { mesh, type, btn, snapPos:null };
+  btn.classList.add('selected');
+  updateDrag(clientX, clientY);
+}
+function updateDrag(clientX, clientY){
+  if(!heldCube) return;
+  forgeCamera.updateMatrixWorld(); // guarantee the ray reflects the latest orbit position, not a stale frame
+  const ndc = screenToNdc(clientX, clientY);
+  raycaster.setFromCamera(ndc, forgeCamera);
+  const slot = nearestValidSlot(raycaster.ray);
+  if(slot){
+    heldCube.mesh.position.set(slot.x*WBLOCK, slot.y*WBLOCK, slot.z*WBLOCK);
+    heldCube.mesh.material = matFor(heldCube.type);
+    heldCube.snapPos = slot;
+  } else {
+    // not aimed at anything placeable - just park it near the weapon so it stays visible
+    raycaster.ray.at(orbitState.dist * 0.9, heldCube.mesh.position);
+    heldCube.mesh.material = heldMatInvalid;
+    heldCube.snapPos = null;
+  }
+}
+function endDrag(){
+  if(!heldCube) return;
+  if(heldCube.snapPos){
+    const {x,y,z} = heldCube.snapPos;
+    inventory[heldCube.type] -= 1;
+    setBlock(x,y,z,heldCube.type);
+    updateHud(); updatePaletteCounts();
+    refreshForgeWeaponMesh();
+    refreshGameWeaponMesh();
+    weaponDirty = true;
+    toast('Bloc posé !');
+  }
+  heldCube.btn.classList.remove('selected');
+  forgeScene.remove(heldCube.mesh);
+  heldCube = null;
+  activePointerId = null;
+}
+
+const paletteButtons = {
+  ore: document.getElementById('palOre'),
+  stone: document.getElementById('palStone'),
+  wood: document.getElementById('palWood'),
+  atkspeed: document.getElementById('palAtkspeed'),
+  lifedrain: document.getElementById('palLifedrain'),
+  ultimatestone: document.getElementById('palUltimatestone'),
+};
+Object.entries(paletteButtons).forEach(([type, btn])=>{
+  btn.addEventListener('pointerdown', e=>{ e.preventDefault(); startDrag(type, btn, e.clientX, e.clientY, e.pointerId); });
+});
+window.addEventListener('pointermove', e=>{ if(heldCube && e.pointerId===activePointerId) updateDrag(e.clientX, e.clientY); });
+window.addEventListener('pointerup', e=>{ if(heldCube && e.pointerId===activePointerId) endDrag(); });
+window.addEventListener('pointercancel', e=>{ if(heldCube && e.pointerId===activePointerId) endDrag(); });
+
+// ---- remove mode: tap a block already on the weapon to pop it back into inventory ----
+let removeMode = false;
+const forgeRemoveBtn = document.getElementById('forgeRemoveBtn');
+forgeRemoveBtn.addEventListener('click', ()=>{
+  removeMode = !removeMode;
+  forgeRemoveBtn.classList.toggle('active', removeMode);
+});
+
+let tapDownPt = null, tapDownTime = 0, tapPointerId = null;
+renderer.domElement.addEventListener('pointerdown', e=>{
+  if(!forgeOpen || !removeMode || heldCube) return;
+  tapDownPt = {x:e.clientX, y:e.clientY}; tapDownTime = performance.now(); tapPointerId = e.pointerId;
+});
+renderer.domElement.addEventListener('pointerup', e=>{
+  if(!tapDownPt || e.pointerId !== tapPointerId) return;
+  const moved = Math.hypot(e.clientX-tapDownPt.x, e.clientY-tapDownPt.y);
+  const heldTime = performance.now() - tapDownTime;
+  tapDownPt = null;
+  if(moved > 12 || heldTime > 500) return; // was a drag/orbit, not a tap
+
+  // same forgiving "closest to the aiming ray, at any depth" targeting as placement
+  forgeCamera.updateMatrixWorld();
+  const ndc = screenToNdc(e.clientX, e.clientY);
+  raycaster.setFromCamera(ndc, forgeCamera);
+  const best = closestGridPointToRay(raycaster.ray, Array.from(weaponBlocks.values()), FORGE_AIM_TOLERANCE);
+  if(!best){ toast("Vise un bloc de l'arme"); return; }
+
+  const result = removeBlockAt(best.x, best.y, best.z);
+  if(result === true){
+    updateHud(); updatePaletteCounts();
+    refreshForgeWeaponMesh();
+    refreshGameWeaponMesh();
+    weaponDirty = true;
+    toast('Bloc récupéré !');
+  } else if(result === 'disconnect'){
+    toast("Retire d'abord les blocs plus loin sur l'arme");
+  } else {
+    toast("Impossible de retirer la base de l'arme");
+  }
+});
+
+// ---- weapon presets: save the current block layout into one of a few slots, then swap
+// between them instantly later - no material cost, since nothing is actually being placed
+// or removed, just reconfigured. Only reachable from the (forge-gated) Arme tab. ----
+// Three slots, one of which is always "active". The working weapon belongs to the active slot;
+// the slot's SAVED layout is separate and only updated by 💾. Materials are only ever "spent" by
+// the active weapon: picking another slot hands everything back to the inventory, then takes
+// out what that slot's saved layout needs (or gives you a blank base if nothing's saved) - you
+// can't wield two swords at once, so two saved layouts sharing the same 20 stone is fine.
+const MAX_WEAPON_PRESETS = 3;
+let weaponPresets = [null, null, null];
+let activePresetSlot = 0;
+const BASE_WEAPON = [{type:'hilt',x:0,y:0,z:0},{type:'core',x:0,y:0,z:1},{type:'core',x:0,y:0,z:2}];
+const isBaseBlockType = t => t==='hilt' || t==='core';
+function presetCost(blocks){
+  const cost = {};
+  blocks.forEach(b => { if(!isBaseBlockType(b.type)) cost[b.type] = (cost[b.type]||0) + 1; });
+  return cost;
+}
+function returnWeaponToInventory(){
+  for(const b of weaponBlocks.values()) if(!isBaseBlockType(b.type)) inventory[b.type] += 1;
+}
+function setWeaponBlocks(blocks){
+  weaponBlocks.clear();
+  blocks.forEach(b => setBlock(b.x, b.y, b.z, b.type));
+  refreshForgeWeaponMesh();
+  refreshGameWeaponMesh();
+  updateHud(); updatePaletteCounts();
+}
+// no save button: the active slot is snapshotted automatically whenever you switch slots or
+// close the forge. Only if you actually touched the weapon though (weaponDirty) - so landing on
+// a slot you can't afford right now (blank fallback) never overwrites its real layout on the way out.
+let weaponDirty = false;
+function autoSaveActiveWeapon(){
+  if(!weaponDirty) return;
+  weaponPresets[activePresetSlot] = Array.from(weaponBlocks.values()).map(b => ({type:b.type, x:b.x, y:b.y, z:b.z}));
+  weaponDirty = false;
+  updatePresetUI();
+}
+function selectPresetSlot(slot){
+  autoSaveActiveWeapon();
+  if(slot === activePresetSlot) return;
+  const preset = weaponPresets[slot];
+  // everything the current weapon holds goes back to the pool first, so switching never "loses" materials
+  returnWeaponToInventory();
+  if(preset){
+    const cost = presetCost(preset);
+    const missing = Object.entries(cost).filter(([mat,qty]) => inventory[mat] < qty);
+    if(missing.length){
+      // can happen if you spent materials (e.g. on a weapon level-up) since saving - fall back to blank
+      toast('Il manque : ' + missing.map(([mat,qty])=>`${qty-inventory[mat]} ${MATERIAL_STATS[mat].label}`).join(', '));
+      activePresetSlot = slot;
+      setWeaponBlocks(BASE_WEAPON);
+      updatePresetUI();
+      return;
+    }
+    for(const [mat,qty] of Object.entries(cost)) inventory[mat] -= qty;
+    activePresetSlot = slot;
+    setWeaponBlocks(preset);
+    toast(`🗡️ Arme ${slot+1}`);
+  } else {
+    activePresetSlot = slot;
+    setWeaponBlocks(BASE_WEAPON);
+    toast(`Arme ${slot+1} : vierge`);
+  }
+  updatePresetUI();
+}
+function resetWeaponToBlank(){
+  returnWeaponToInventory();
+  setWeaponBlocks(BASE_WEAPON);
+  weaponDirty = true;
+  toast('↺ Arme remise à zéro');
+}
+function updatePresetUI(){
+  for(let i=0; i<MAX_WEAPON_PRESETS; i++){
+    const btn = document.getElementById('presetSlot'+i);
+    btn.classList.toggle('filled', !!weaponPresets[i]);
+    btn.classList.toggle('active', i === activePresetSlot);
+  }
+}
+for(let i=0; i<MAX_WEAPON_PRESETS; i++){
+  document.getElementById('presetSlot'+i).addEventListener('click', ()=>selectPresetSlot(i));
+}
+document.getElementById('presetResetBtn').addEventListener('click', resetWeaponToBlank);
+
+// ================= EQUIPMENT (weapon forge + boots share one panel, two tabs) =================
+// used to be two separate buttons/panels (forge in the bottom-right, boots up by the joystick) -
+// consolidated into one entry point since they cluttered the screen and the boots button sat
+// right where players were trying to move.
+let equipTab = 'arme';
+function updateEquipTabUI(){
+  document.getElementById('tabArmeBtn').classList.toggle('active', equipTab==='arme');
+  document.getElementById('tabArmeBtn').classList.toggle('locked', !canEditWeaponHere());
+  document.getElementById('tabBottesBtn').classList.toggle('active', equipTab==='bottes');
+  document.getElementById('armeContent').style.display = equipTab==='arme' ? 'block' : 'none';
+  document.getElementById('forgeRemoveBtn').style.display = equipTab==='arme' ? 'inline-block' : 'none';
+  document.getElementById('weaponLevelBtn').style.display = equipTab==='arme' ? 'inline-block' : 'none';
+  document.getElementById('bootsPanel').style.display = equipTab==='bottes' ? 'flex' : 'none';
+  if(equipTab==='bottes') updateBootsPanel();
+  if(equipTab==='arme') updatePresetUI();
+}
+// weapon reshaping (the Arme tab) only opens if you're standing at the forge station -
+// everywhere else it bounces you to Bottes with an explanation instead.
+// weapon editing works anywhere except inside the Tower - a climb is meant to be committed
+// to with the loadout you brought. (The forge landmark near spawn is just decoration now.)
+function canEditWeaponHere(){ return currentRealm !== 'tower'; }
+function requestEquipTab(tab){
+  if(tab === 'arme' && !canEditWeaponHere()){
+    toast('🗼 Pas de forge dans la Tour !');
+    return 'bottes';
+  }
+  return tab;
+}
+function switchEquipTab(tab){
+  tab = requestEquipTab(tab);
+  if(tab !== 'arme'){ removeMode = false; forgeRemoveBtn.classList.remove('active'); }
+  equipTab = tab;
+  closeWeaponLevelPanel();
+  updateEquipTabUI();
+}
+function openEquip(tab){
+  forgeOpen = true;
+  equipTab = requestEquipTab(tab || 'arme');
+  document.getElementById('forgeUI').style.display = 'block';
+  document.getElementById('hud').style.display = 'none'; // HP/level/inventory aren't needed while managing gear - just clutter here
+  document.getElementById('joystick').style.display = 'none';
+  document.getElementById('attackBtn').style.display = 'none';
+  document.getElementById('jumpBtn').style.display = 'none';
+  document.getElementById('equipBtn').style.display = 'none';
+  document.getElementById('dashBtn').style.display = 'none';
+  document.getElementById('slamBtn').style.display = 'none';
+  joyEnd();
+  refreshForgeWeaponMesh();
+  updateEquipTabUI();
+}
+function closeEquip(){
+  autoSaveActiveWeapon();
+  forgeOpen = false;
+  document.getElementById('forgeUI').style.display = 'none';
+  document.getElementById('bootsPanel').style.display = 'none';
+  closeWeaponLevelPanel();
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('joystick').style.display = 'block';
+  document.getElementById('attackBtn').style.display = 'block';
+  document.getElementById('jumpBtn').style.display = 'block';
+  document.getElementById('equipBtn').style.display = 'block';
+  if(heldCube){ heldCube.btn.classList.remove('selected'); forgeScene.remove(heldCube.mesh); heldCube=null; activePointerId=null; }
+  orbitPointers.clear(); orbitPinchDist = null; orbitPinchMid = null;
+  removeMode = false;
+  forgeRemoveBtn.classList.remove('active');
+  updateDashHud();
+  updateSlamHud();
+}
+document.getElementById('equipBtn').addEventListener('click', ()=>openEquip('arme'));
+document.getElementById('forgeCloseBtn').addEventListener('click', closeEquip);
+document.getElementById('tabArmeBtn').addEventListener('click', ()=>switchEquipTab('arme'));
+document.getElementById('tabBottesBtn').addEventListener('click', ()=>switchEquipTab('bottes'));
+
+// ================= BOOTS =================
+function updateBootsPanel(){
+  document.getElementById('bootsCount').textContent = bootsSpeedStones;
+  document.getElementById('bootsBonus').textContent = Math.round(bootsSpeedStones*BOOTS_SPEED_BONUS_PER_STONE*100);
+  document.getElementById('speedInStock').textContent = inventory.speedstone;
+}
+function refreshBootsEffects(){
+  computeWeaponStats(); // move speed depends on the boots bonus
+  computeBootsStats(); // dash charges depend on how many speed stones are attached
+  updateStatsHud();
+  updateHud();
+  updateBootsPanel();
+}
+
+document.getElementById('attachSpeedBtn').addEventListener('click', ()=>{
+  if(inventory.speedstone <= 0){ toast("Tu n'as pas de pierre de vitesse"); return; }
+  inventory.speedstone -= 1;
+  bootsSpeedStones += 1;
+  refreshBootsEffects();
+  toast('Pierre attachée aux bottes !');
+});
+document.getElementById('detachSpeedBtn').addEventListener('click', ()=>{
+  if(bootsSpeedStones <= 0) return;
+  bootsSpeedStones -= 1;
+  inventory.speedstone += 1;
+  refreshBootsEffects();
+  toast('Pierre retirée');
+});
+
+document.getElementById('dashBtn').addEventListener('touchstart', e=>{ e.preventDefault(); doDash(); }, {passive:false});
+document.getElementById('dashBtn').addEventListener('mousedown', doDash);
+window.addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='e') doDash(); });
+
+document.getElementById('slamBtn').addEventListener('touchstart', e=>{ e.preventDefault(); doSlam(); }, {passive:false});
+document.getElementById('slamBtn').addEventListener('mousedown', doSlam);
+window.addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='q') doSlam(); });
+
+document.getElementById('choosePvBtn').addEventListener('click', ()=>chooseLevelBonus('hp'));
+document.getElementById('chooseForceBtn').addEventListener('click', ()=>chooseLevelBonus('force'));
+
+function showDeathScreen(){
+  document.getElementById('joystick').style.display = 'none';
+  document.getElementById('attackBtn').style.display = 'none';
+  document.getElementById('jumpBtn').style.display = 'none';
+  document.getElementById('dashBtn').style.display = 'none';
+  document.getElementById('slamBtn').style.display = 'none';
+  document.getElementById('equipBtn').style.display = 'none';
+  document.getElementById('deathOverlay').style.display = 'flex';
+}
+// revive in place of a page reload: everything (levels, inventory, weapon, presets, unlocks) is
+// already in memory, so death just heals you up and drops you back at the overworld spawn -
+// no penalty, nothing lost. Leaving via teleportTo also tidies up any tower run you were in.
+function revivePlayer(){
+  gameOver = false;
+  playerHp = playerMaxHp;
+  swinging = false; atkCoolingDown = false; swordPivot.rotation.set(0,0,0);
+  slamActive = false; slamCoolingDown = false; slamPowerBonus = 0; player.rotation.x = 0; removeSlamIndicator();
+  dashAnim = null;
+  projectiles.forEach(p => { scene.remove(p.mesh); p.mesh.material.dispose(); });
+  projectiles.length = 0;
+  teleportTo({ x: 0, z: 0 }, 'overworld');
+  teleportCooldownT = 0;
+  document.getElementById('deathOverlay').style.display = 'none';
+  document.getElementById('joystick').style.display = 'block';
+  document.getElementById('attackBtn').style.display = 'block';
+  document.getElementById('jumpBtn').style.display = 'block';
+  document.getElementById('equipBtn').style.display = 'block';
+  updateDashHud();
+  updateSlamHud();
+  updateHud();
+  toast('✨ Tu es de retour, en pleine forme !');
+}
+document.getElementById('reviveBtn').addEventListener('click', revivePlayer);
+document.getElementById('reviveBtn').addEventListener('touchstart', e=>{ e.preventDefault(); revivePlayer(); }, {passive:false});
+
+// ================= FULLSCREEN =================
+// Android/desktop browsers: the Fullscreen API hides the URL bar (must be triggered by a tap).
+// iOS Safari doesn't allow it for pages at all - there the only route is "Add to Home Screen",
+// which the meta tags in <head> turn into a real chrome-less app window, so we just say so once.
+const fsBtn = document.getElementById('fsBtn');
+const docEl = document.documentElement;
+const fsSupported = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen);
+const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function isFullscreen(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function updateFsBtn(){
+  fsBtn.style.display = (fsSupported && !isFullscreen() && !isStandalone) ? 'block' : 'none';
+}
+function enterFullscreen(){
+  const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
+  if(!req) return;
+  try { const p = req.call(docEl); if(p && p.catch) p.catch(()=>{}); } catch(e){}
+}
+fsBtn.addEventListener('click', enterFullscreen);
+fsBtn.addEventListener('touchstart', e=>{ e.preventDefault(); enterFullscreen(); }, {passive:false});
+document.addEventListener('fullscreenchange', updateFsBtn);
+document.addEventListener('webkitfullscreenchange', updateFsBtn);
+updateFsBtn();
+if(isIOS && !isStandalone){
+  // one nudge, after the first real tap so it doesn't fight the landscape prompt on load
+  let iosHintShown = false;
+  window.addEventListener('touchstart', ()=>{
+    if(iosHintShown) return; iosHintShown = true;
+    setTimeout(()=>toast("📱 Plein écran sur iPhone : Partager → « Sur l'écran d'accueil », puis lance-le depuis l'icône", 6000), 1500);
+  }, { once:true, passive:true });
+}
+
+// ================= MAIN LOOP =================
+const clock = new THREE.Clock();
+
+function respawnLogic(now){
+  nodes.forEach(n=>{
+    if(!n.alive && now > n.respawnAt){
+      const p = randomGroundPos();
+      n.mesh.position.set(p.x, groundHeightAt(p.x,p.z)+0.3, p.z); n.mesh.visible = true; n.alive = true;
+    }
+  });
+  enemies.forEach(en=>{
+    if(!en.alive && now > en.respawnAt){
+      // the boss always comes back at its fixed post in the cave, never a random spot in the world
+      const p = en.isBoss ? en.home.clone() : randomGroundPos();
+      en.mesh.position.set(p.x, en.baseY+groundHeightAt(p.x,p.z), p.z); en.mesh.visible = true; en.hp = en.maxHp; en.alive = true;
+      if(!en.isBoss) en.home = p.clone();
+      updateHpBar(en);
+    }
+  });
+  trees.forEach(tr=>{
+    if(!tr.alive && now > tr.respawnAt){
+      const p = randomGroundPos();
+      tr.mesh.position.set(p.x, tr.baseY+groundHeightAt(p.x,p.z), p.z); tr.mesh.visible = true; tr.hp = tr.maxHp; tr.alive = true;
+      updateHpBar(tr);
+    }
+  });
+}
+// ground-based monsters can't climb, so a platform footprint is a solid wall to them
+function moveEnemyToward(en, dir, speed, dt){
+  const newX = en.mesh.position.x + dir.x*speed*dt;
+  const newZ = en.mesh.position.z + dir.z*speed*dt;
+  if(platformHeightAt(newX, newZ) > 0) return; // ground-based monsters can't climb platforms
+  en.mesh.position.x = newX;
+  en.mesh.position.z = newZ;
+  en.mesh.position.y = en.baseY + groundHeightAt(newX, newZ); // follow the terrain up/down hills
+}
+
+function updateEnemies(dt, now){
+  enemies.forEach(en=>{
+    if(!en.alive) return;
+    const cfg = ENEMY_TYPES[en.type];
+    if(en.type === 'desertboss'){ updateDesertBossAI(en, cfg, dt, now); return; } // static, but it does shoot
+    if(en.isStatic) return;
+
+    if(en.isBoss){ updateBossAI(en, cfg, dt, now); return; }
+    if(en.isTowerMob){ updateTowerMobAI(en, cfg, dt, now); return; }
+
+    const distToPlayer = en.mesh.position.distanceTo(player.position);
+    const aggroed = en.aggroRadius > 0 && distToPlayer < en.aggroRadius;
+
+    if(aggroed){
+      const to = player.position.clone().sub(en.mesh.position); to.y=0;
+      if(to.length() > 0.05){ to.normalize(); moveEnemyToward(en, to, cfg.chaseSpeed, dt); }
+    } else {
+      if(now > en.nextWanderChange){
+        en.wanderTarget = en.home.clone().add(new THREE.Vector3(randRange(-3,3),0,randRange(-3,3)));
+        en.nextWanderChange = now + randRange(2000,4500);
+      }
+      const to = en.wanderTarget.clone().sub(en.mesh.position); to.y=0;
+      if(to.length() > 0.1){ to.normalize(); moveEnemyToward(en, to, cfg.wanderSpeed, dt); }
+    }
+
+    // only aggressive monsters actually hurt you - passive ones are harmless even on contact
+    if(cfg.dmgPerSec > 0 && distToPlayer < cfg.contactRadius && !gameOver){
+      playerHp -= dt*cfg.dmgPerSec;
+      if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+      updateHud();
+    }
+  });
+}
+
+// ================= DESERT BOSS: ARROW RAIN =================
+// generic world-positioned ground telegraph: a static outer disc showing the full hit radius from
+// frame one, plus an inner disc that fills out to that edge as the timer runs - when it reaches the
+// edge it resolves and hurts you if you're still inside. Unlike the cave boss's, these aren't
+// children of the boss (the target is wherever YOU are, not under it), so they live in the scene.
+const groundTelegraphs = []; // {outer, inner, pos, t, duration, radius, damage}
+function spawnGroundTelegraph(pos, radius, duration, damage){
+  const y = groundHeightAt(pos.x, pos.z);
+  const outer = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color:0xff2020, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false }));
+  outer.rotation.x = -Math.PI/2; outer.position.set(pos.x, y+0.04, pos.z); outer.scale.set(radius, radius, 1);
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color:0xff5030, transparent:true, opacity:0.65, side:THREE.DoubleSide, depthWrite:false }));
+  inner.rotation.x = -Math.PI/2; inner.position.set(pos.x, y+0.05, pos.z); inner.scale.set(0.001, 0.001, 1);
+  scene.add(outer, inner);
+  groundTelegraphs.push({ outer, inner, pos: pos.clone(), t:0, duration, radius, damage });
+}
+function updateGroundTelegraphs(dt){
+  for(let i=groundTelegraphs.length-1; i>=0; i--){
+    const g = groundTelegraphs[i];
+    g.t += dt;
+    const p = Math.min(g.t/g.duration, 1);
+    const r = Math.max(0.05, p*g.radius);
+    g.inner.scale.set(r, r, 1);
+    if(p >= 1){
+      const dx = player.position.x-g.pos.x, dz = player.position.z-g.pos.z;
+      if(!gameOver && Math.hypot(dx,dz) < g.radius){
+        playerHp -= g.damage;
+        if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+        updateHud();
+      }
+      scene.remove(g.outer, g.inner);
+      g.outer.material.dispose(); g.inner.material.dispose();
+      groundTelegraphs.splice(i,1);
+    }
+  }
+}
+function updateDesertBossAI(en, cfg, dt, now){
+  if(currentRealm !== 'desert') return;
+  if(en.mesh.position.distanceTo(player.position) > cfg.arrowRange) return;
+  if(now < en.nextAttackReady) return;
+  en.nextAttackReady = now + cfg.arrowCooldown*1000;
+  // aim at where you are right now, with a little scatter - moving is what saves you
+  const target = new THREE.Vector3(
+    player.position.x + randRange(-cfg.arrowScatter, cfg.arrowScatter), 0,
+    player.position.z + randRange(-cfg.arrowScatter, cfg.arrowScatter));
+  spawnGroundTelegraph(target, cfg.arrowRadius, cfg.arrowTelegraph, cfg.arrowDamage);
+}
+
+// ================= TOWER MOB MECHANICS =================
+// each mob type dispatches to its own function via cfg.mechanic. Shared contact damage (scaled
+// by the floor's difficulty multiplier) applies to all of them except while explicitly
+// invulnerable (the warden's shield phase) - mechanic functions only handle movement/attacks
+// unique to that type.
+function updateTowerMobAI(en, cfg, dt, now){
+  const dist = en.mesh.position.distanceTo(player.position);
+  switch(cfg.mechanic){
+    case 'ranged':    updateRangedMob(en, cfg, dt, now, dist); break;
+    case 'invisible':  updateInvisibleMob(en, cfg, dt, now, dist); break;
+    case 'jumper':     updateJumperMob(en, cfg, dt, now, dist); break;
+    case 'swift':      updateSwiftMob(en, cfg, dt, now, dist); break;
+    case 'bomber':     updateBomberMob(en, cfg, dt, now, dist); break;
+    case 'phantom':    updatePhantomMob(en, cfg, dt, now, dist); break;
+    case 'warden':     updateWardenMob(en, cfg, dt, now, dist); break;
+    default: simpleChase(en, cfg, dt, dist); // 'brute' and any fallback
+  }
+  if(cfg.dmgPerSec > 0 && dist < cfg.contactRadius && !gameOver && !en.invulnerable){
+    playerHp -= dt*cfg.dmgPerSec*en.dmgScale;
+    if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+    updateHud();
+  }
+}
+function simpleChase(en, cfg, dt, dist){
+  if(dist >= en.aggroRadius) return;
+  const to = player.position.clone().sub(en.mesh.position); to.y=0;
+  if(to.length() > 0.05){ to.normalize(); moveEnemyToward(en, to, cfg.chaseSpeed, dt); }
+}
+
+// ranged: keeps its distance, fires a projectile on a cooldown
+function updateRangedMob(en, cfg, dt, now, dist){
+  if(dist >= en.aggroRadius) return;
+  if(dist > cfg.preferredRange){
+    const to = player.position.clone().sub(en.mesh.position); to.y=0;
+    if(to.length() > 0.05){ to.normalize(); moveEnemyToward(en, to, cfg.chaseSpeed, dt); }
+  } else if(dist < cfg.preferredRange*0.6){
+    const away = en.mesh.position.clone().sub(player.position); away.y=0;
+    if(away.length() > 0.05){ away.normalize(); moveEnemyToward(en, away, cfg.chaseSpeed*0.8, dt); }
+  }
+  if(now >= en.nextAttackReady){
+    en.nextAttackReady = now + cfg.fireCooldown*1000;
+    fireProjectileAt(en, cfg.projectileDamage*en.dmgScale, cfg.projectileSpeed);
+  }
+}
+
+// invisible: cycles between visible and near-transparent - always dangerous, only sometimes
+// easy to see coming
+function updateInvisibleMob(en, cfg, dt, now, dist){
+  en.stealthT += dt;
+  const cyclePos = en.stealthT % cfg.stealthCycle;
+  const visibleNow = cyclePos < cfg.stealthVisibleWindow;
+  en.visualMaterials.forEach(m => { m.opacity = visibleNow ? 1 : 0.12; });
+  simpleChase(en, cfg, dt, dist);
+}
+
+// jumper: closes distance in short leaping arcs instead of a smooth walk
+function updateJumperMob(en, cfg, dt, now, dist){
+  if(en.jumpState === 'leaping'){
+    en.jumpT += dt;
+    const p = Math.min(en.jumpT/cfg.jumpDuration, 1);
+    const x = en.jumpFromX + (en.jumpToX-en.jumpFromX)*p;
+    const z = en.jumpFromZ + (en.jumpToZ-en.jumpFromZ)*p;
+    en.mesh.position.x = x; en.mesh.position.z = z;
+    en.mesh.position.y = en.baseY + groundHeightAt(x,z) + Math.sin(p*Math.PI)*cfg.jumpHeight;
+    if(p >= 1){ en.jumpState = 'cooldown'; en.jumpCooldownT = 0; }
+    return;
+  }
+  if(en.jumpState === 'cooldown'){
+    en.jumpCooldownT += dt;
+    if(en.jumpCooldownT >= cfg.jumpCooldown) en.jumpState = 'idle';
+    return;
+  }
+  if(dist >= en.aggroRadius) return;
+  if(dist < cfg.jumpTriggerRange){
+    const dir = player.position.clone().sub(en.mesh.position); dir.y=0;
+    if(dir.lengthSq() < 0.0001) return;
+    dir.normalize();
+    en.jumpFromX = en.mesh.position.x; en.jumpFromZ = en.mesh.position.z;
+    en.jumpToX = en.mesh.position.x + dir.x*cfg.jumpDistance;
+    en.jumpToZ = en.mesh.position.z + dir.z*cfg.jumpDistance;
+    en.jumpT = 0;
+    en.jumpState = 'leaping';
+  } else {
+    simpleChase(en, cfg, dt, dist);
+  }
+}
+
+// swift: fast, and weaves side to side instead of beelining - harder to land a clean hit on
+function updateSwiftMob(en, cfg, dt, now, dist){
+  if(dist >= en.aggroRadius) return;
+  en.zigzagT += dt;
+  const to = player.position.clone().sub(en.mesh.position); to.y=0;
+  if(to.length() <= 0.05) return;
+  to.normalize();
+  const perp = new THREE.Vector3(-to.z, 0, to.x);
+  const wobble = Math.sin(en.zigzagT*6) * 0.6;
+  const dir = to.clone().addScaledVector(perp, wobble).normalize();
+  moveEnemyToward(en, dir, cfg.chaseSpeed, dt);
+}
+
+// bomber: rushes in, detonates for AoE the moment it gets close (to you, not just on death)
+function updateBomberMob(en, cfg, dt, now, dist){
+  if(dist < en.aggroRadius) simpleChase(en, cfg, dt, dist);
+  if(dist < cfg.explodeRange) explodeBomberMob(en, cfg);
+}
+function explodeBomberMob(en, cfg){
+  if(!gameOver && en.mesh.position.distanceTo(player.position) < cfg.explodeRadius){
+    playerHp -= cfg.explodeDamage*en.dmgScale;
+    if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+    updateHud();
+    toast('💥 Explosion !');
+  }
+  spawnSlamShockwave(en.mesh.position, cfg.explodeRadius);
+  const leftoverHp = en.hp;
+  damageEnemy(en, leftoverHp); // routes through the normal death/cleanup path
+}
+
+// phantom: blinks to a random spot near you on a cooldown instead of walking the whole way
+function updatePhantomMob(en, cfg, dt, now, dist){
+  if(dist >= en.aggroRadius) return;
+  if(now >= en.nextBlinkReady){
+    en.nextBlinkReady = now + cfg.blinkCooldown*1000;
+    const ang = Math.random()*Math.PI*2;
+    const nx = THREE.MathUtils.clamp(player.position.x + Math.cos(ang)*cfg.blinkRange, TOWER_BOUNDS.minX+1, TOWER_BOUNDS.maxX-1);
+    const nz = THREE.MathUtils.clamp(player.position.z + Math.sin(ang)*cfg.blinkRange, TOWER_BOUNDS.minZ+1, TOWER_BOUNDS.maxZ-1);
+    en.mesh.position.set(nx, en.baseY+groundHeightAt(nx,nz), nz);
+  } else {
+    simpleChase(en, cfg, dt, dist);
+  }
+}
+
+// warden: periodically shields itself (briefly immune to all damage) - tells you to back off
+// and wait rather than trade hits
+function updateWardenMob(en, cfg, dt, now, dist){
+  en.shieldT += dt;
+  const cyclePos = en.shieldT % cfg.shieldCycle;
+  const nowShielded = cyclePos < cfg.shieldActiveWindow;
+  if(nowShielded !== en.invulnerable){
+    en.invulnerable = nowShielded;
+    en.visualMaterials.forEach(m => m.color.setHex(nowShielded ? cfg.shieldColor : (m.userData.baseColor ?? cfg.color)));
+  }
+  simpleChase(en, cfg, dt, dist);
+}
+
+// ---- generic projectile system, used by ranged tower mobs ----
+const projectiles = []; // {mesh, vel, life, maxLife, damage}
+const projectileGeo = new THREE.SphereGeometry(0.16, 8, 8);
+function fireProjectileAt(en, damage, speed){
+  const dir = player.position.clone().sub(en.mesh.position); dir.y = 0;
+  if(dir.lengthSq() < 0.0001) return;
+  dir.normalize();
+  const mesh = new THREE.Mesh(projectileGeo, new THREE.MeshBasicMaterial({ color:0xff5030 }));
+  mesh.position.copy(en.mesh.position);
+  mesh.position.y += 0.3;
+  scene.add(mesh);
+  projectiles.push({ mesh, vel: dir.multiplyScalar(speed), life:0, maxLife:4, damage });
+}
+function updateProjectiles(dt){
+  for(let i=projectiles.length-1; i>=0; i--){
+    const p = projectiles[i];
+    p.life += dt;
+    p.mesh.position.addScaledVector(p.vel, dt);
+    if(!gameOver && p.mesh.position.distanceTo(player.position) < 0.5){
+      playerHp -= p.damage;
+      if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+      updateHud();
+      scene.remove(p.mesh); p.mesh.material.dispose(); projectiles.splice(i,1);
+      continue;
+    }
+    if(p.life > p.maxLife){ scene.remove(p.mesh); p.mesh.material.dispose(); projectiles.splice(i,1); }
+  }
+}
+
+// ---- boss pattern: chase into range, telegraph a ground-slam, then a short vulnerable
+// recovery before it can chase again. Contact itself never hurts you - the slam is the only
+// real threat. The telegraph is two discs, sized in real world units (not a scaled thin ring
+// that ends up tiny) so the danger zone is unmistakable:
+//  - a static outer disc, shown at the FULL final radius for the whole windup - this IS where
+//    the hit will land, visible from the very first frame.
+//  - a brighter inner disc that fills from the center out to that same edge as the windup
+//    timer runs out - when it reaches the boundary, the slam lands. ----
+function spawnBossTelegraphRing(en, cfg){
+  const outer = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color:0xff2020, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false }));
+  outer.rotation.x = -Math.PI/2;
+  outer.position.y = -en.baseY + 0.04;
+  outer.scale.set(cfg.slamRadius, cfg.slamRadius, 1);
+  en.mesh.add(outer);
+
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color:0xff5030, transparent:true, opacity:0.65, side:THREE.DoubleSide, depthWrite:false }));
+  inner.rotation.x = -Math.PI/2;
+  inner.position.y = -en.baseY + 0.05;
+  inner.scale.set(0.001, 0.001, 1);
+  en.mesh.add(inner);
+
+  en.telegraphOuter = outer; en.telegraphOuterMat = outer.material;
+  en.telegraphInner = inner; en.telegraphInnerMat = inner.material;
+  toast('⚠️ Le boss se prépare à frapper !');
+}
+function updateBossTelegraphRing(en, cfg){
+  if(!en.telegraphInner) return;
+  const p = Math.min(en.bossTelegraphT/cfg.slamTelegraph, 1);
+  const r = Math.max(0.05, p*cfg.slamRadius);
+  en.telegraphInner.scale.set(r, r, 1);
+  en.telegraphOuterMat.opacity = 0.22 + 0.15*Math.sin(p*Math.PI); // subtle pulse so the boundary reads as "live"
+}
+function removeBossTelegraphRing(en){
+  if(en.telegraphOuter){ en.mesh.remove(en.telegraphOuter); en.telegraphOuter=null; en.telegraphOuterMat=null; }
+  if(en.telegraphInner){ en.mesh.remove(en.telegraphInner); en.telegraphInner=null; en.telegraphInnerMat=null; }
+}
+function resolveBossSlam(en, cfg){
+  const hit = !gameOver && en.mesh.position.distanceTo(player.position) < cfg.slamRadius;
+  if(hit){
+    playerHp -= cfg.slamDamage;
+    if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+    updateHud();
+    toast("💥 Le boss écrase le sol !");
+  } else {
+    toast("💨 Tu as évité le coup de sol !");
+  }
+}
+// ---- line attack: longer reach than the slam but narrow, so a sidestep clears it. Direction
+// locks in toward the player the instant the windup starts (not tracked live), so juking
+// sideways during the telegraph is a real, fair dodge - same design as the AoE. ----
+function spawnBossLineTelegraph(en, cfg){
+  const dir = player.position.clone().sub(en.mesh.position); dir.y = 0;
+  if(dir.lengthSq() < 0.0001) dir.set(0,0,1); else dir.normalize();
+  en.lineDir = dir.clone();
+  const angle = Math.atan2(dir.x, dir.z);
+
+  const group = new THREE.Group();
+  group.rotation.y = angle;
+  en.mesh.add(group);
+
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({ color:0xff2020, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false }));
+  outer.rotation.x = -Math.PI/2;
+  outer.position.set(0, -en.baseY+0.04, cfg.lineLength/2);
+  outer.scale.set(cfg.lineWidth, cfg.lineLength, 1);
+  group.add(outer);
+
+  const inner = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({ color:0xff5030, transparent:true, opacity:0.65, side:THREE.DoubleSide, depthWrite:false }));
+  inner.rotation.x = -Math.PI/2;
+  inner.position.set(0, -en.baseY+0.05, 0.0005);
+  inner.scale.set(cfg.lineWidth, 0.001, 1);
+  group.add(inner);
+
+  en.lineGroup = group;
+  en.lineOuterMat = outer.material;
+  en.lineInner = inner;
+  toast('⚠️ Le boss charge une attaque en ligne !');
+}
+function updateBossLineTelegraph(en, cfg){
+  if(!en.lineInner) return;
+  const p = Math.min(en.bossTelegraphT/cfg.lineTelegraph, 1);
+  const len = Math.max(0.05, p*cfg.lineLength);
+  en.lineInner.scale.set(cfg.lineWidth, len, 1);
+  en.lineInner.position.z = len/2;
+  en.lineOuterMat.opacity = 0.22 + 0.15*Math.sin(p*Math.PI);
+}
+function removeBossLineTelegraph(en){
+  if(en.lineGroup){ en.mesh.remove(en.lineGroup); en.lineGroup=null; en.lineOuterMat=null; en.lineInner=null; }
+}
+function resolveBossLine(en, cfg){
+  if(gameOver) return;
+  const dir = en.lineDir || new THREE.Vector3(0,0,1);
+  const toPlayer = player.position.clone().sub(en.mesh.position); toPlayer.y = 0;
+  const along = toPlayer.dot(dir);
+  const perp = toPlayer.clone().sub(dir.clone().multiplyScalar(along)).length();
+  const hit = along >= 0 && along <= cfg.lineLength && perp <= cfg.lineWidth/2;
+  if(hit){
+    playerHp -= cfg.lineDamage;
+    if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+    updateHud();
+    toast("💥 Le boss frappe en ligne !");
+  } else {
+    toast("💨 Tu as évité l'attaque en ligne !");
+  }
+}
+function updateBossAI(en, cfg, dt, now){
+  const distToPlayer = en.mesh.position.distanceTo(player.position);
+
+  // standing next to the boss always chip-damages you, same as an aggressive mob, regardless
+  // of its current state - the telegraphed attacks are on top of that, not instead of it
+  if(cfg.dmgPerSec > 0 && distToPlayer < cfg.contactRadius && !gameOver){
+    playerHp -= dt*cfg.dmgPerSec;
+    if(playerHp <= 0){ playerHp=0; gameOver=true; showDeathScreen(); }
+    updateHud();
+  }
+
+  if(en.bossState === 'telegraph'){
+    en.bossTelegraphT += dt;
+    if(en.currentAttack === 'line') updateBossLineTelegraph(en, cfg);
+    else updateBossTelegraphRing(en, cfg);
+    const windup = en.currentAttack === 'line' ? cfg.lineTelegraph : cfg.slamTelegraph;
+    if(en.bossTelegraphT >= windup){
+      if(en.currentAttack === 'line') resolveBossLine(en, cfg);
+      else resolveBossSlam(en, cfg);
+      removeBossTelegraphRing(en);
+      removeBossLineTelegraph(en);
+      en.bossState = 'recover';
+      en.bossRecoverT = 0;
+    }
+    return; // frozen in place during windup
+  }
+  if(en.bossState === 'recover'){
+    en.bossRecoverT += dt;
+    const recoverDur = en.currentAttack === 'line' ? cfg.lineRecover : cfg.slamRecover;
+    if(en.bossRecoverT >= recoverDur) en.bossState = 'idle';
+    return; // vulnerable, but also not attacking - a fair punish window
+  }
+
+  const aggroed = distToPlayer < en.aggroRadius;
+  if(aggroed){
+    // one shared cooldown for both attacks - never chains them back to back.
+    // up close it stomps, at range it reaches out with the line instead.
+    if(now >= en.nextAttackReady){
+      if(distToPlayer <= cfg.slamRange){
+        en.currentAttack = 'slam';
+        en.bossState = 'telegraph'; en.bossTelegraphT = 0;
+        en.nextAttackReady = now + cfg.slamCooldown*1000;
+        spawnBossTelegraphRing(en, cfg);
+        return;
+      } else if(distToPlayer <= cfg.lineRange){
+        en.currentAttack = 'line';
+        en.bossState = 'telegraph'; en.bossTelegraphT = 0;
+        en.nextAttackReady = now + cfg.lineCooldown*1000;
+        spawnBossLineTelegraph(en, cfg);
+        return;
+      }
+    }
+    const to = player.position.clone().sub(en.mesh.position); to.y=0;
+    if(to.length() > 0.05){ to.normalize(); moveEnemyToward(en, to, cfg.chaseSpeed, dt); }
+  } else {
+    if(now > en.nextWanderChange){
+      en.wanderTarget = en.home.clone().add(new THREE.Vector3(randRange(-3,3),0,randRange(-3,3)));
+      en.nextWanderChange = now + randRange(2000,4500);
+    }
+    const to = en.wanderTarget.clone().sub(en.mesh.position); to.y=0;
+    if(to.length() > 0.1){ to.normalize(); moveEnemyToward(en, to, cfg.wanderSpeed, dt); }
+  }
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const now = performance.now();
+
+  if(forgeOpen){
+    if(equipTab === 'arme') renderer.render(forgeScene, forgeCamera);
+    return;
+  }
+
+  if(!gameOver && !levelUpOpen){
+    const kb = keyboardVec();
+    const mx = (Math.abs(joyVec.x) > Math.abs(kb.x)) ? joyVec.x : kb.x;
+    const my = (Math.abs(joyVec.y) > Math.abs(kb.y)) ? joyVec.y : kb.y;
+    const stickMag = Math.hypot(mx,my);
+    if(stickMag > 0.05 && !swinging && !slamActive){ // locked during the swing/slam so neither can be steered or interrupted
+      // camera-relative: joystick "up" always means "away from camera", regardless of which way that is in the world
+      const dir = new THREE.Vector3()
+        .addScaledVector(camForwardVec(), -my)
+        .addScaledVector(camRightVec(), mx)
+        .normalize();
+      const speed = weaponStats.moveSpeed * Math.min(1, stickMag); // proportional to how far the stick is pushed
+      const newX = THREE.MathUtils.clamp(player.position.x + dir.x*speed*dt, realmMinX(), realmMaxX());
+      const newZ = THREE.MathUtils.clamp(player.position.z + dir.z*speed*dt, realmMinZ(), realmMaxZ());
+      // terrain slopes are always walkable - only a platform's sheer edge needs a jump to climb
+      const currentPlatform = platformHeightAt(player.position.x, player.position.z);
+      const targetPlatform = platformHeightAt(newX, newZ);
+      // grounded: only a small step up is walkable. Airborne: you may enter a footprint only if
+      // your feet actually cleared its top - otherwise jumping/dashing next to a tall column (the
+      // desert pillar, cave walls, the tower base) let you drift into its side and land on top.
+      const canEnter = grounded
+        ? (targetPlatform - currentPlatform <= 0.05)
+        : (playerY >= targetPlatform - 0.3);
+      if(canEnter){
+        player.position.x = newX;
+        player.position.z = newZ;
+      }
+      facing.copy(dir);
+      player.rotation.y = Math.atan2(dir.x, dir.z);
+    }
+
+    // forced forward drift during the slam leap - not steerable, just a straight hop.
+    // also pitches the whole body from upright to horizontal, like diving forward, and grows
+    // the danger-zone indicator under the (moving) landing spot as the leap plays out.
+    if(slamActive){
+      const sx = THREE.MathUtils.clamp(player.position.x + slamDir.x*SLAM_FORWARD_SPEED*dt, realmMinX(), realmMaxX());
+      const sz = THREE.MathUtils.clamp(player.position.z + slamDir.z*SLAM_FORWARD_SPEED*dt, realmMinZ(), realmMaxZ());
+      if(playerY >= platformHeightAt(sx, sz) - 0.3){ // same rule as normal airborne movement
+        player.position.x = sx;
+        player.position.z = sz;
+      }
+      slamAirT += dt;
+      const diveP = Math.min(slamAirT/SLAM_AIRTIME_EST, 1);
+      player.rotation.x = SLAM_DIVE_TILT * Math.sin(diveP*Math.PI/2); // eases into the dive, doesn't snap
+      updateSlamIndicator();
+    }
+
+    // vertical physics (gravity + jump)
+    const targetGround = groundHeightAt(player.position.x, player.position.z);
+    velocityY -= GRAVITY*dt;
+    playerY += velocityY*dt;
+    if(playerY <= targetGround){
+      playerY = targetGround;
+      velocityY = 0;
+      grounded = true;
+      if(slamActive){ slamActive = false; player.rotation.x = 0; performSlamImpact(); }
+    } else {
+      grounded = false;
+    }
+    player.position.y = playerY;
+
+    updateDashAnim(dt);
+    updateDashGhosts(dt);
+    updateSlamShockwaves(dt);
+    updateSlamCooldown(dt);
+    updateDamageNumbers(dt);
+    updateHpBarVisibility();
+    updateMinimap();
+    updatePortals(dt);
+    updatePortalTeleport(dt);
+    updateDesertBossHint();
+    updateProjectiles(dt);
+    updateGroundTelegraphs(dt);
+    updateMineCrystals(dt);
+    updateMineRun(dt);
+    updateTowerStair(dt);
+    updateTowerStairTrigger();
+    updateEnemies(dt, now);
+    respawnLogic(now);
+
+    // dash charge regen
+    if(dashCharges_current < maxDashCharges){
+      dashRegenT += dt;
+      if(dashRegenT >= DASH_REGEN_TIME){ dashRegenT = 0; dashCharges_current++; updateDashHud(); }
+    }
+    document.getElementById('dashBtn').classList.toggle('onCooldown', dashOnCooldown || dashCharges_current<=0);
+  }
+
+  if(swinging){
+    swingT += dt; // fixed real-time speed, never scaled by weight - always exactly SWING_DURATION long
+    const progress = Math.min(swingT/SWING_DURATION, 1);
+    const eased = 0.5 - 0.5*Math.cos(progress*Math.PI); // slow start/end, snappy middle - feels like a real strike
+    // a real lateral sweep across the 70 degree arc, left to right, staying flat on one plane -
+    // this IS the hitbox's actual path, so no vertical tilt here or the blade (and the hits) drift up/down
+    swordPivot.rotation.y = SWING_HALF_ANGLE - eased * (2*SWING_HALF_ANGLE);
+    checkSwingHits();
+    if(swingT >= SWING_DURATION){
+      swinging = false;
+      swordPivot.rotation.set(0,0,0);
+      atkCoolingDown = true;
+      atkCooldownT = 0;
+    }
+  } else if(atkCoolingDown){
+    // this is where weight actually matters - a heavy weapon can't be swung again as quickly
+    atkCooldownT += dt;
+    const cdDuration = BASE_ATTACK_COOLDOWN * weaponStats.swingMultiplier;
+    const cdProgress = Math.min(atkCooldownT/cdDuration, 1);
+    const remainingDeg = (1-cdProgress)*360;
+    atkCooldownOverlay.style.background = remainingDeg > 1
+      ? `conic-gradient(rgba(0,0,0,0.65) 0deg ${remainingDeg}deg, transparent ${remainingDeg}deg 360deg)`
+      : 'transparent';
+    if(atkCooldownT >= cdDuration){ atkCoolingDown = false; atkCooldownOverlay.style.background='transparent'; }
+  }
+
+  updateCamera();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
